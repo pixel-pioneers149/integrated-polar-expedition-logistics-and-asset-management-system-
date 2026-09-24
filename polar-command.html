@@ -1,0 +1,2487 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PolarOps — Integrated Expedition Logistics &amp; Asset Command</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.1"></script>
+<script>
+tailwind.config = {
+  corePlugins: { preflight: true },
+  theme: {
+    extend: {
+      colors: {
+        abyss:  '#050A14',
+        hull:   '#0A1120',
+        deck:   '#0E1829',
+        panel:  '#111F35',
+        line:   '#1D2E4C',
+        line2:  '#28406B',
+        ice:    '#7FD7FF',
+        glacier:'#38BDF8',
+        aurora: '#2DD4BF',
+        beam:   '#8AA6CC',
+        frost:  '#E8F1FB',
+        amber1: '#F0A429',
+        crimson:'#F0524D',
+        moss:   '#3FCF8E'
+      },
+      fontFamily: {
+        sans: ['Inter','system-ui','Segoe UI','sans-serif'],
+        cond: ['"Barlow Semi Condensed"','Inter','sans-serif'],
+        mono: ['"IBM Plex Mono"','ui-monospace','SFMono-Regular','monospace']
+      }
+    }
+  }
+}
+</script>
+<style>
+:root{
+  --abyss:#050A14; --hull:#0A1120; --deck:#0E1829; --panel:#111F35;
+  --line:#1D2E4C; --ice:#7FD7FF; --beam:#8AA6CC; --frost:#E8F1FB;
+}
+:root:not([data-theme="light"]){ color-scheme: dark; }
+html,body{height:100%;}
+body{
+  margin:0; background:var(--abyss); color:var(--frost);
+  font-family:Inter,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+/* Faint polar grid wash behind the whole shell */
+body::before{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(1100px 700px at 78% -10%, rgba(56,189,248,.10), transparent 60%),
+    radial-gradient(800px 600px at 0% 100%, rgba(45,212,191,.07), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(127,215,255,.035) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(90deg, rgba(127,215,255,.035) 0 1px, transparent 1px 64px);
+}
+#app{position:relative; z-index:1;}
+*{scrollbar-width:thin; scrollbar-color:#28406B transparent;}
+*::-webkit-scrollbar{width:9px;height:9px}
+*::-webkit-scrollbar-thumb{background:#1D2E4C;border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+*::-webkit-scrollbar-thumb:hover{background:#2C4573;background-clip:padding-box}
+*::-webkit-scrollbar-track{background:transparent}
+:focus-visible{outline:2px solid #7FD7FF; outline-offset:2px; border-radius:4px}
+
+.glass{background:linear-gradient(180deg, rgba(17,31,53,.92), rgba(10,17,32,.92)); backdrop-filter:blur(8px);}
+.panel{background:rgba(14,24,41,.72); border:1px solid #1D2E4C;}
+.panel-flat{background:#0E1829; border:1px solid #1D2E4C;}
+.hairline{border-color:#1D2E4C}
+.tick{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.cond{font-family:"Barlow Semi Condensed",Inter,sans-serif}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;color:#6E87AD}
+.linkish{transition:color .15s ease, background-color .15s ease, border-color .15s ease}
+.row-hover:hover{background:rgba(56,189,248,.055)}
+.striped:nth-child(even){background:rgba(255,255,255,.012)}
+
+.led{width:7px;height:7px;border-radius:99px;display:inline-block;flex:none}
+.led-ok{background:#3FCF8E;box-shadow:0 0 0 3px rgba(63,207,142,.15)}
+.led-warn{background:#F0A429;box-shadow:0 0 0 3px rgba(240,164,41,.15)}
+.led-crit{background:#F0524D;box-shadow:0 0 0 3px rgba(240,82,77,.18)}
+.led-info{background:#57A6F5;box-shadow:0 0 0 3px rgba(87,166,245,.15)}
+.led-idle{background:#54698C;box-shadow:0 0 0 3px rgba(84,105,140,.15)}
+
+@keyframes pulsering{0%{r:6;opacity:.85}70%{r:22;opacity:0}100%{r:22;opacity:0}}
+.pulse-ring{animation:pulsering 2.2s ease-out infinite}
+@keyframes blip{0%,100%{opacity:1}50%{opacity:.25}}
+.blip{animation:blip 1.5s ease-in-out infinite}
+@keyframes sweep{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.sweep{transform-origin:center; animation:sweep 8s linear infinite}
+@keyframes toastin{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+.toast{animation:toastin .18s ease-out}
+@keyframes modalin{from{transform:translateY(10px) scale(.99);opacity:0}to{transform:none;opacity:1}}
+.modal-in{animation:modalin .16s ease-out}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+}
+.scroll-x{overflow-x:auto}
+table{border-collapse:separate;border-spacing:0}
+th{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;color:#6E87AD;font-weight:500;text-align:left}
+input,select,textarea{color-scheme:dark}
+input::placeholder,textarea::placeholder{color:#5B7194}
+.nav-active{background:linear-gradient(90deg, rgba(56,189,248,.16), rgba(56,189,248,.02)); color:#E8F1FB}
+.nav-active .navbar-ind{opacity:1}
+</style>
+</head>
+<body>
+<div id="app" class="flex h-screen w-full overflow-hidden">
+  <aside id="sidebar" class="hidden md:flex md:w-[236px] flex-col shrink-0 glass border-r border-[#1D2E4C]"></aside>
+  <div id="sidebar-mobile" class="hidden"></div>
+  <div class="flex-1 flex flex-col min-w-0">
+    <header id="topbar" class="shrink-0 glass border-b border-[#1D2E4C]"></header>
+    <main id="view" class="flex-1 overflow-y-auto overflow-x-hidden"></main>
+  </div>
+</div>
+<div id="modal-root"></div>
+<div id="toast-root" class="fixed bottom-4 right-4 z-[80] flex flex-col gap-2 items-end pointer-events-none"></div>
+
+<script>
+/* ============================================================
+   PolarOps — Integrated Polar Expedition Logistics & Asset
+   Management System.  NCPOR / Ministry of Earth Sciences.
+   Single-file operational prototype. All data is simulated.
+   ============================================================ */
+(function(){
+"use strict";
+
+/* ---------- tiny utils ---------- */
+const $ = (s,r)=> (r||document).querySelector(s);
+const esc = (s)=> String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = (n,w)=> String(n).padStart(w||2,'0');
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const uid = (p)=> p+'-'+Math.random().toString(36).slice(2,7).toUpperCase();
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const rnd = mulberry32(20261119);
+const pick = (arr)=> arr[Math.floor(rnd()*arr.length)];
+const ri = (a,b)=> a+Math.floor(rnd()*(b-a+1));
+const rf = (a,b,d)=> +(a+rnd()*(b-a)).toFixed(d==null?1:d);
+const fmt = (n)=> (n==null?'—':Number(n).toLocaleString('en-IN'));
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function dfmt(ts){const d=new Date(ts);return pad(d.getDate())+' '+MONTHS[d.getMonth()]+' '+d.getFullYear();}
+function tfmt(ts){const d=new Date(ts);return pad(d.getHours())+':'+pad(d.getMinutes());}
+function dtfmt(ts){return dfmt(ts)+' · '+tfmt(ts);}
+function ago(ts){
+  const m=Math.round((NOW-ts)/60000);
+  if(m<1)return 'just now'; if(m<60)return m+' min ago';
+  const h=Math.floor(m/60); if(h<24)return h+' h '+(m%60)+' m ago';
+  return Math.floor(h/24)+' d ago';
+}
+const NOW = new Date(2027,11,14,19,15,0).getTime(); // 14 Dec 2027, 19:15 station time
+const HOUR=3600e3, DAY=864e5;
+
+/* ---------- icons (inline, 24x24 stroke) ---------- */
+const P = {
+  gauge:'M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4M13.4 10.6 19 5M3.34 19a10 10 0 1 1 17.32 0',
+  compass:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36z',
+  radar:'M19.07 4.93A10 10 0 1 1 12 2v10l6-4M12 12l5.66 5.66',
+  package:'M16.5 9.4 7.5 4.21M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12',
+  boxes:'M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-4.5-2.6-4.53 2.02M7 16.5 3.06 14.1M7 16.5v5.17M7 16.5l4.97-2.42M12 8V2.5l-4.5 2.6M12 8l4.5-2.6M12 8 7.5 5.4M17 16.5l-4.97-2.42M17 16.5l3.94-2.4M17 16.5v5.17M22 14.63a2 2 0 0 0-.97-1.71L16.5 11l-4.5 2.5V19l4 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71z',
+  users:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+  truck:'M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2M15 18H9M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14M7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4M17 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4',
+  siren:'M7 18v-6a5 5 0 1 1 10 0v6M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2zM21 12h1M18.5 4.5 18 5M2 12h1M12 2v1M4.929 4.929l.707.707',
+  sparkles:'m12 3-1.9 5.8a2 2 0 0 1-1.287 1.288L3 12l5.8 1.9a2 2 0 0 1 1.288 1.287L12 21l1.9-5.8a2 2 0 0 1 1.287-1.288L21 12l-5.8-1.9a2 2 0 0 1-1.288-1.287zM5 3v4M19 17v4M3 5h4M17 19h4',
+  chart:'M3 3v16a2 2 0 0 0 2 2h16M7 16l4-6 4 4 5-7',
+  file:'M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7zM14 2v4a2 2 0 0 0 2 2h4M9 13h6M9 17h6',
+  bot:'M12 8V4H8M4 8h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2M2 14h2M20 14h2M15 13v2M9 13v2',
+  settings:'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6',
+  search:'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16M21 21l-4.3-4.3',
+  bell:'M10.268 21a2 2 0 0 0 3.464 0M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326',
+  wifi:'M12 20h.01M2 8.82a15 15 0 0 1 20 0M5 12.859a10 10 0 0 1 14 0M8.5 16.429a5 5 0 0 1 7 0',
+  alert:'m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3M12 9v4M12 17h.01',
+  plus:'M5 12h14M12 5v14',
+  x:'M18 6 6 18M6 6l12 12',
+  check:'M20 6 9 17l-5-5',
+  clock:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20M12 6v6l4 2',
+  pin:'M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6',
+  fuel:'M3 22h12M4 9h10M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5',
+  wrench:'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z',
+  chev:'m9 18 6-6-6-6',
+  chevd:'m6 9 6 6 6-6',
+  qr:'M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h1.5v1.5H15zM19.5 15H21v1.5h-1.5zM15 19.5h1.5V21H15zM19.5 19.5H21V21h-1.5z',
+  arrow:'M5 12h14M12 5l7 7-7 7',
+  down:'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',
+  filter:'M3 6h18M7 12h10M10 18h4',
+  radio:'M4.9 19.1C1 15.2 1 8.8 4.9 4.9M7.8 16.2a6 6 0 0 1 0-8.4M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2M16.2 7.8a6 6 0 0 1 0 8.4M19.1 4.9C23 8.8 23 15.2 19.1 19.1',
+  activity:'M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2',
+  shield:'M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z',
+  temp:'M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0',
+  menu:'M4 6h16M4 12h16M4 18h16',
+  ship:'M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9.94 5.34 2.58 7.09M12 10V2M4 10h16',
+  plane:'M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2',
+  station:'M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 11h.01M15 11h.01',
+  send:'M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z',
+  refresh:'M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5',
+  route:'M6 19a3 3 0 1 0 0-6 3 3 0 0 0 0 6M18 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6M9 16h6a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6',
+  layers:'m12.83 2.18 8.06 4.03a1 1 0 0 1 0 1.79l-8.06 4.02a2 2 0 0 1-1.66 0L3.11 8a1 1 0 0 1 0-1.79l8.06-4.03a2 2 0 0 1 1.66 0M22 17.65l-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65M22 12.65l-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65',
+  eye:'M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6',
+  edit:'M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497zM15 5l4 4',
+  archive:'M20 9v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9M2 4h20v5H2zM10 13h4',
+  trend:'M16 7h6v6M22 7l-8.5 8.5-5-5L2 17',
+  battery:'M10 10v4M14 10v4M22 14v-4M2 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z',
+  heart:'M2 12h5l2-5 4 10 2-5h7',
+  dot:'M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2'
+};
+function ic(name, cls, sw){
+  const d = P[name]||P.dot;
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="'+(sw||1.7)+'" stroke-linecap="round" stroke-linejoin="round" class="'+(cls||'w-4 h-4')+'" aria-hidden="true">'+
+    d.split('M').filter(Boolean).map(s=>'<path d="M'+s+'"/>').join('')+'</svg>';
+}
+window.__ic = ic;
+
+/* ===================== DATA LAYER ===================== */
+
+const PLACES = {
+  'Maitri Station':        {lat:-70.766, lon: 11.731, kind:'station', theatre:'antarctic'},
+  'Bharati Station':       {lat:-69.407, lon: 76.187, kind:'station', theatre:'antarctic'},
+  'Himadri Station':       {lat: 78.923, lon: 11.923, kind:'station', theatre:'arctic'},
+  'Dakshin Gangotri Depot':{lat:-70.088, lon: 11.560, kind:'depot',   theatre:'antarctic'},
+  'Field Camp Alpha':      {lat:-70.980, lon: 10.420, kind:'camp',    theatre:'antarctic'},
+  'Field Camp Bravo':      {lat:-71.410, lon: 12.880, kind:'camp',    theatre:'antarctic'},
+  'Field Camp Charlie':    {lat:-69.760, lon: 74.900, kind:'camp',    theatre:'antarctic'},
+  'Amery Drill Site':      {lat:-70.240, lon: 70.100, kind:'camp',    theatre:'antarctic'},
+  'Schirmacher Oasis':     {lat:-70.744, lon: 11.610, kind:'zone',    theatre:'antarctic'},
+  'Larsemann Hills':       {lat:-69.400, lon: 76.000, kind:'zone',    theatre:'antarctic'},
+  'Ice Shelf Route 04':    {lat:-70.100, lon: 11.900, kind:'route',   theatre:'antarctic'},
+  'Prydz Bay Anchorage':   {lat:-68.500, lon: 75.000, kind:'port',    theatre:'antarctic'},
+  'Cape Town Port':        {lat:-33.920, lon: 18.420, kind:'port',    theatre:'antarctic'},
+  'Goa NCPOR Warehouse':   {lat:-38.500, lon: 73.830, kind:'port',    theatre:'antarctic'},
+  'Southern Ocean 58S':    {lat:-58.200, lon: 42.000, kind:'sea',     theatre:'antarctic'},
+  'Southern Ocean 63S':    {lat:-63.400, lon: 25.600, kind:'sea',     theatre:'antarctic'},
+  'Kongsfjorden':          {lat: 78.960, lon: 12.400, kind:'zone',    theatre:'arctic'},
+  'Ny-Ålesund Port':       {lat: 78.930, lon: 11.940, kind:'port',    theatre:'arctic'},
+  'Longyearbyen':          {lat: 78.220, lon: 15.640, kind:'port',    theatre:'arctic'}
+};
+const PLACE_NAMES = Object.keys(PLACES);
+
+/* --- expeditions --- */
+const expeditions = [
+  { id:'EXP-2027-01', code:'ISEA-44', name:'Indian Antarctic Expedition 2027', status:'Active',
+    destination:'Maitri Station, Dronning Maud Land', region:'Antarctic',
+    start:Date.UTC(2027,11,1), end:Date.UTC(2028,2,15), lead:'Dr. Ananya Deshpande',
+    objective:'Winter-over changeover, ice-core retrieval at Amery, station power retrofit.',
+    base:'Maitri Station' },
+  { id:'EXP-2027-02', code:'IARC-11', name:'Arctic Himadri Winter Campaign', status:'Active',
+    destination:'Ny-Ålesund, Svalbard', region:'Arctic',
+    start:Date.UTC(2027,9,20), end:Date.UTC(2028,1,28), lead:'Dr. Kabir Raina',
+    objective:'Aerosol and fjord chemistry observation through polar night.',
+    base:'Himadri Station' },
+  { id:'EXP-2027-03', code:'SOSS-12', name:'Southern Ocean Survey Leg 12', status:'Active',
+    destination:'Prydz Bay transect', region:'Southern Ocean',
+    start:Date.UTC(2027,10,8), end:Date.UTC(2028,0,30), lead:'Capt. Meera Iyer',
+    objective:'CTD transect, krill acoustics and mooring recovery along 70°E.',
+    base:'ORV Sagar Nidhi' },
+  { id:'EXP-2027-04', code:'BRSR-07', name:'Bharati Resupply & Refit', status:'Active',
+    destination:'Bharati Station, Larsemann Hills', region:'Antarctic',
+    start:Date.UTC(2027,11,6), end:Date.UTC(2028,1,20), lead:'Cdr. Vikram Nair',
+    objective:'Annual resupply, fuel bladder replacement, desalination plant refit.',
+    base:'Bharati Station' },
+  { id:'EXP-2028-05', code:'AMDD-03', name:'Amery Deep Drill Programme', status:'Planning',
+    destination:'Amery Ice Shelf', region:'Antarctic',
+    start:Date.UTC(2028,10,15), end:Date.UTC(2029,2,10), lead:'Dr. Sneha Kulkarni',
+    objective:'Sub-shelf oceanography via 480 m hot-water borehole.',
+    base:'Amery Drill Site' },
+  { id:'EXP-2026-09', code:'ISEA-43', name:'Indian Antarctic Expedition 2026', status:'Archived',
+    destination:'Maitri Station', region:'Antarctic',
+    start:Date.UTC(2026,10,28), end:Date.UTC(2027,2,18), lead:'Dr. Ananya Deshpande',
+    objective:'Completed. 118 personnel, 1 842 t cargo, zero lost-time incidents.',
+    base:'Maitri Station' }
+];
+const activeExpIds = expeditions.filter(e=>e.status==='Active').map(e=>e.id);
+
+expeditions.forEach(e=>{
+  e.health = { logistics:ri(72,94), personnel:ri(86,98), inventory:ri(68,92), assets:ri(80,96), safety:ri(90,99) };
+  if(e.status==='Planning') e.health={logistics:41,personnel:38,inventory:55,assets:62,safety:88};
+  if(e.status==='Archived') e.health={logistics:100,personnel:100,inventory:100,assets:100,safety:100};
+});
+expeditions[0].health = {logistics:86, personnel:94, inventory:78, assets:91, safety:97};
+
+/* routes */
+const ROUTES = {
+  'EXP-2027-01':['Goa NCPOR Warehouse','Cape Town Port','Southern Ocean 58S','Southern Ocean 63S','Prydz Bay Anchorage','Maitri Station','Field Camp Bravo'],
+  'EXP-2027-02':['Goa NCPOR Warehouse','Longyearbyen','Ny-Ålesund Port','Himadri Station','Kongsfjorden'],
+  'EXP-2027-03':['Cape Town Port','Southern Ocean 58S','Southern Ocean 63S','Prydz Bay Anchorage'],
+  'EXP-2027-04':['Goa NCPOR Warehouse','Cape Town Port','Prydz Bay Anchorage','Bharati Station','Larsemann Hills'],
+  'EXP-2028-05':['Maitri Station','Ice Shelf Route 04','Amery Drill Site'],
+  'EXP-2026-09':['Goa NCPOR Warehouse','Cape Town Port','Maitri Station']
+};
+expeditions.forEach(e=> e.route = (ROUTES[e.id]||[]).map((p,i)=>({
+  seq:i+1, place:p, eta: e.start + i*6*DAY,
+  state: e.status==='Planning' ? 'Planned' : (e.start + i*6*DAY < NOW ? 'Cleared' : (i===0?'Cleared':'Planned'))
+})));
+
+/* missions */
+const MISSION_POOL = [
+  ['Ice-core retrieval — 120 m','Glaciology','Field Camp Bravo'],
+  ['Automatic weather station servicing','Meteorology','Schirmacher Oasis'],
+  ['Katabatic wind profiling','Atmospheric Science','Maitri Station'],
+  ['Krill acoustic transect','Marine Biology','Southern Ocean 63S'],
+  ['Mooring recovery — PB-04','Oceanography','Prydz Bay Anchorage'],
+  ['Fuel bladder replacement','Engineering','Bharati Station'],
+  ['Station power retrofit — phase 2','Engineering','Maitri Station'],
+  ['Aerosol sampling run','Atmospheric Science','Kongsfjorden'],
+  ['Permafrost borehole logging','Geology','Larsemann Hills'],
+  ['Magnetic observatory calibration','Geophysics','Maitri Station'],
+  ['Sea-ice thickness survey','Glaciology','Ice Shelf Route 04'],
+  ['Medical readiness drill','Medical','Bharati Station'],
+  ['Satellite uplink hardening','Communications','Himadri Station'],
+  ['Hot-water drill trial','Glaciology','Amery Drill Site']
+];
+const MSTATE=['Completed','In Progress','Scheduled','Blocked'];
+let missions=[];
+MISSION_POOL.forEach((m,i)=>{
+  const exp = i%5===4 ? expeditions[4] : expeditions[i%4];
+  missions.push({
+    id:'MSN-'+pad(101+i,3), title:m[0], discipline:m[1], site:m[2], expeditionId:exp.id,
+    state: exp.status==='Planning'?'Scheduled':MSTATE[ri(0,3)],
+    start: NOW - ri(2,14)*DAY, due: NOW + ri(-2,26)*DAY, progress: ri(0,100),
+    leadRole:['Principal Investigator','Field Lead','Engineering Lead'][ri(0,2)]
+  });
+});
+missions.forEach(m=>{ if(m.state==='Completed') m.progress=100; if(m.state==='Scheduled') m.progress=0; });
+
+/* --- personnel: 126 deployed --- */
+const FIRST=['Rahul','Ananya','Kabir','Meera','Vikram','Sneha','Arjun','Priya','Rohit','Divya','Aditya','Nikhil','Pooja','Karthik','Ishaan','Neha','Sanjay','Tara','Manish','Ritu','Farhan','Lakshmi','Devansh','Ayesha','Suresh','Gauri','Harsh','Anjali','Nitin','Kavya','Imran','Swati','Vivek','Ritika','Abhay','Shreya','Zubin','Malini','Rajat','Padma'];
+const LAST=['Sharma','Deshpande','Raina','Iyer','Nair','Kulkarni','Menon','Bose','Chauhan','Reddy','Gupta','Sengupta','Patil','Rao','Ahmed','Joshi','Banerjee','Verma','Pillai','Thakur','Shetty','Mishra','Dutta','Khan','Bhatt','Saxena','Ghosh','Mehta'];
+const ROLES=[
+  ['Glaciologist','Ice Dynamics Team','Science'],['Atmospheric Scientist','Climate Research Team','Science'],
+  ['Marine Biologist','Ocean Systems Team','Science'],['Geophysicist','Earth Observation Team','Science'],
+  ['Station Engineer','Station Engineering','Engineering'],['Power Systems Technician','Station Engineering','Engineering'],
+  ['Communications Officer','Comms & IT','Engineering'],['Vehicle Mechanic','Transport & Fleet','Engineering'],
+  ['Expedition Doctor','Medical Unit','Medical'],['Paramedic','Medical Unit','Medical'],
+  ['Logistics Officer','Logistics Cell','Logistics'],['Cargo Supervisor','Logistics Cell','Logistics'],
+  ['Chef','Station Support','Support'],['Meteorological Observer','Climate Research Team','Science'],
+  ['Deck Officer','Vessel Crew','Vessel'],['Marine Engineer','Vessel Crew','Vessel'],
+  ['Helicopter Pilot','Air Wing','Vessel'],['Mountaineer / Safety','Field Safety Team','Safety'],
+  ['Search & Rescue Specialist','Field Safety Team','Safety'],['Data Manager','Comms & IT','Engineering']
+];
+const PSTATUS=['On Duty','On Duty','On Duty','On Mission','On Mission','Resting','Off-Station','Medical Hold'];
+const personnel=[];
+for(let i=0;i<126;i++){
+  const first=FIRST[i%FIRST.length], last=LAST[(i*7+3)%LAST.length];
+  const role=ROLES[i%ROLES.length];
+  const exp = expeditions[[0,0,0,1,2,3,0,3][i%8]];
+  let loc;
+  if(exp.id==='EXP-2027-02') loc = pick(['Himadri Station','Himadri Station','Kongsfjorden','Ny-Ålesund Port']);
+  else if(exp.id==='EXP-2027-03') loc = pick(['Southern Ocean 63S','Southern Ocean 58S','Prydz Bay Anchorage']);
+  else if(exp.id==='EXP-2027-04') loc = pick(['Bharati Station','Bharati Station','Field Camp Charlie','Larsemann Hills']);
+  else loc = pick(['Maitri Station','Maitri Station','Maitri Station','Field Camp Alpha','Field Camp Bravo','Schirmacher Oasis','Dakshin Gangotri Depot']);
+  const last_ci = NOW - ri(5,600)*60000;
+  personnel.push({
+    id:'PRS-'+pad(1001+i,4), name:'Dr. '.repeat(role[2]==='Science'?1:0)+first+' '+last,
+    role:role[0], team:role[1], group:role[2], expeditionId:exp.id, location:loc,
+    status:PSTATUS[(i*5)%PSTATUS.length], lastCheckIn:last_ci,
+    expectedCheckIn: last_ci + 6*HOUR,
+    assignment: pick(missions).title,
+    blood: pick(['O+','A+','B+','AB+','O-','A-']),
+    sat: 'IRD-'+pad(200+i,3), onIce: ri(4,96),
+    movements:[]
+  });
+}
+personnel.forEach(p=>{
+  let t = NOW - 11*HOUR;
+  const seq=[p.location, pick(PLACE_NAMES.filter(n=>PLACES[n].theatre===(p.expeditionId==='EXP-2027-02'?'arctic':'antarctic'))), p.location];
+  for(let k=0;k<4;k++){
+    t += ri(90,220)*60000;
+    p.movements.push({ts:Math.min(t,NOW-5*60000), place:k===3?p.location:seq[k%seq.length], via:pick(['On foot','Snow vehicle SV-0'+ri(1,8),'Pisten Bully','Helicopter','Skidoo'])});
+  }
+});
+/* deliberate overdue check-ins */
+[3,17,58].forEach((idx,n)=>{
+  const p=personnel[idx];
+  p.status='On Mission';
+  p.location = ['Field Camp Bravo','Ice Shelf Route 04','Field Camp Alpha'][n];
+  p.lastCheckIn = NOW - (7+n)*HOUR - 20*60000;
+  p.expectedCheckIn = NOW - (75+n*40)*60000;
+});
+function isOverdue(p){ return p.expectedCheckIn < NOW && p.status!=='Off-Station' && p.status!=='Resting'; }
+
+/* --- cargo --- */
+const CARGO_ITEMS=[
+  ['Polar diesel ATK — 200 L drums','Fuel',3800],['Aviation turbine fuel pallet','Fuel',4200],
+  ['Frozen ration container','Food',6100],['Dry ration pallet','Food',2400],
+  ['Medical consumables crate','Medical',420],['Vaccine cold-chain box','Medical',180],
+  ['Ice-core drill head assembly','Scientific Equipment',960],['CTD rosette spares','Scientific Equipment',740],
+  ['Automatic weather station kit','Scientific Equipment',310],['Lithium battery bank','Batteries',1450],
+  ['Snow vehicle track set','Spare Parts',2100],['Generator alternator unit','Spare Parts',880],
+  ['Emergency shelter module','Emergency Supplies',1900],['Survival ration pack','Emergency Supplies',540],
+  ['Desalination membrane set','Spare Parts',630],['Satellite terminal crate','Scientific Equipment',290],
+  ['Hydroponic module','Food',1260],['Fuel bladder — 15 kL','Fuel',2750],
+  ['Seismograph package','Scientific Equipment',350],['Wind turbine nacelle','Spare Parts',3400]
+];
+const CSTATUS=['Planned','Packed','Dispatched','In Transit','Delayed','Arrived','Verified','Stored'];
+const CPRIO=['Critical','High','Normal','Normal','Low'];
+const CHAIN=['Goa NCPOR Warehouse','Cape Town Port','Research Vessel','Antarctic Landing','Research Station'];
+const cargo=[];
+for(let i=0;i<64;i++){
+  const it=CARGO_ITEMS[i%CARGO_ITEMS.length];
+  const exp=expeditions[[0,0,1,2,3,0,3,0][i%8]];
+  let status = i<39 ? 'In Transit' : CSTATUS[(i*3)%CSTATUS.length];
+  if(i>=39 && status==='In Transit') status='Stored';
+  const dest = exp.base;
+  const stageIdx = {'Planned':0,'Packed':0,'Dispatched':1,'In Transit':2,'Delayed':2,'Arrived':3,'Verified':3,'Stored':4}[status];
+  cargo.push({
+    id:'CGO-'+pad(1000+i*2,4), item:it[0], category:it[1],
+    weight: Math.round(it[2]*rf(.6,1.4,2)), unitsCount: ri(1,40),
+    origin:'Goa NCPOR Warehouse', destination:dest, expeditionId:exp.id,
+    location: CHAIN[stageIdx]==='Research Vessel' ? 'ORV Sagar Nidhi' : (CHAIN[stageIdx]==='Antarctic Landing'?'Prydz Bay Anchorage':(CHAIN[stageIdx]==='Research Station'?dest:CHAIN[stageIdx])),
+    status, priority:CPRIO[(i*7)%CPRIO.length], stage:stageIdx,
+    eta: NOW + ri(-6,42)*DAY, packed: NOW - ri(10,60)*DAY,
+    temp: it[1]==='Medical'||it[1]==='Food' ? rf(-24,4,1) : null,
+    handler: pick(personnel.filter(p=>p.group==='Logistics')).name
+  });
+}
+cargo[12].id='CGO-SCI-1024'; cargo[12].item='Ice-core drill head assembly'; cargo[12].status='Delayed'; cargo[12].priority='Critical';
+cargo.forEach(c=>{
+  c.history = CHAIN.map((s,i)=>({
+    stage:s, ts: c.packed + i*ri(3,9)*DAY,
+    done: i<=c.stage, note: i===2?'Hold 3, lashed & sealed':(i===4?'Warehoused, QR verified':'')
+  }));
+  if(c.status==='Delayed') c.history[c.stage].note='Weather hold — pack ice, 2°E';
+});
+
+/* --- inventory --- */
+const INV_DEF=[
+  ['Polar diesel (ATK)','Fuel','L',8500,620,4000,30000,'Maitri Station',null],
+  ['Aviation turbine fuel','Fuel','L',12400,340,6000,40000,'Maitri Station',null],
+  ['Polar diesel (ATK)','Fuel','L',16800,410,5000,30000,'Bharati Station',null],
+  ['Kerosene — field stoves','Fuel','L',1180,95,600,4000,'Field Camp Bravo',null],
+  ['Frozen protein rations','Food','kg',4200,58,1500,9000,'Maitri Station',Date.UTC(2028,6,30)],
+  ['Dry rations & grains','Food','kg',6400,71,2000,12000,'Maitri Station',Date.UTC(2029,1,12)],
+  ['Fresh & hydroponic produce','Food','kg',310,22,250,1200,'Maitri Station',Date.UTC(2027,11,29)],
+  ['Frozen protein rations','Food','kg',2050,41,1200,6000,'Bharati Station',Date.UTC(2028,4,18)],
+  ['Emergency ration packs','Emergency Supplies','packs',480,3,300,900,'Maitri Station',Date.UTC(2030,0,1)],
+  ['Analgesics & antibiotics','Medical','units',920,11,400,2000,'Maitri Station',Date.UTC(2028,8,4)],
+  ['IV fluids & plasma expanders','Medical','units',148,4,150,600,'Maitri Station',Date.UTC(2028,2,22)],
+  ['Trauma kits','Medical','kits',26,0.4,20,60,'Field Camp Bravo',Date.UTC(2029,5,1)],
+  ['Frostbite treatment kits','Medical','kits',34,0.6,25,80,'Bharati Station',Date.UTC(2028,10,9)],
+  ['Oxygen cylinders','Medical','cyl',42,1.1,30,90,'Maitri Station',null],
+  ['Ice-core drill bits','Scientific Equipment','units',18,0.7,15,50,'Field Camp Bravo',null],
+  ['CTD sensor spares','Scientific Equipment','units',24,0.3,12,40,'ORV Sagar Nidhi',null],
+  ['Sample storage vials','Scientific Equipment','units',3400,46,1000,6000,'Maitri Station',null],
+  ['Weather sensor modules','Scientific Equipment','units',31,0.5,20,70,'Himadri Station',null],
+  ['Lithium station batteries','Batteries','units',96,1.3,60,200,'Maitri Station',Date.UTC(2031,0,1)],
+  ['Field battery packs','Batteries','units',58,4.2,60,180,'Field Camp Alpha',Date.UTC(2029,7,1)],
+  ['Vehicle starter batteries','Batteries','units',19,0.2,12,40,'Bharati Station',null],
+  ['Snow vehicle track links','Spare Parts','units',64,1.8,50,160,'Maitri Station',null],
+  ['Generator filter sets','Spare Parts','sets',22,0.9,25,80,'Maitri Station',null],
+  ['Hydraulic hose assemblies','Spare Parts','units',41,0.8,25,90,'Bharati Station',null],
+  ['Desalination membranes','Spare Parts','units',7,0.15,8,24,'Bharati Station',null],
+  ['Survival tents','Emergency Supplies','units',28,0.1,20,60,'Maitri Station',null],
+  ['Distress beacons (PLB)','Emergency Supplies','units',54,0.2,40,120,'Maitri Station',Date.UTC(2032,0,1)],
+  ['Rope & crevasse rescue sets','Emergency Supplies','sets',31,0.3,25,70,'Field Camp Alpha',null]
+];
+const inventory = INV_DEF.map((d,i)=>{
+  const o={ id:'INV-'+pad(300+i,3), name:d[0], category:d[1], unit:d[2], qty:d[3], daily:d[4],
+            min:d[5], max:d[6], location:d[7], expiry:d[8] };
+  o.history=[]; let q=o.qty + o.daily*21;
+  for(let k=21;k>=0;k--){ o.history.push({d:NOW-k*DAY, q:Math.max(0,Math.round(q))}); q -= o.daily*rf(.72,1.3,2); }
+  o.history[o.history.length-1].q=o.qty;
+  return o;
+});
+function invDays(it){ return it.daily>0 ? it.qty/it.daily : 999; }
+function invStatus(it){
+  const d=invDays(it);
+  if(it.qty<=it.min || d<=12) return 'Critical';
+  if(it.qty<=it.min*1.35 || d<=25) return 'Warning';
+  if(it.expiry && it.expiry-NOW < 30*DAY) return 'Warning';
+  return 'Healthy';
+}
+
+/* --- assets: 72 --- */
+const ASSET_DEF=[
+  ['Research Vessel',['ORV Sagar Nidhi','MV Vasiliy Golovnin','ORV Bhaskara Sagar'],['Southern Ocean 63S','Prydz Bay Anchorage','Cape Town Port']],
+  ['Snow Vehicle',['Pisten Bully 300','Kässbohrer PB-100','Snow Scooter Lynx','Tucker Sno-Cat','Hägglunds BV206'],['Maitri Station','Bharati Station','Field Camp Alpha','Ice Shelf Route 04','Field Camp Bravo']],
+  ['Aircraft',['Basler BT-67','AS350 Helicopter','DHC-6 Twin Otter'],['Maitri Station','Bharati Station','Prydz Bay Anchorage']],
+  ['Generator',['Cummins 250 kVA','Caterpillar 180 kVA','Wind-Diesel Hybrid Unit'],['Maitri Station','Bharati Station','Himadri Station','Field Camp Bravo']],
+  ['Scientific Equipment',['Ice Core Drill Rig','CTD Rosette','Mass Spectrometer','Seismograph Array','LIDAR Ceilometer'],['Maitri Station','Field Camp Bravo','ORV Sagar Nidhi','Himadri Station']],
+  ['Communication Equipment',['INMARSAT Terminal','HF Base Station','VHF Repeater','Iridium Gateway'],['Maitri Station','Bharati Station','Himadri Station','Field Camp Alpha']],
+  ['Medical Equipment',['Portable X-Ray','Ventilator Unit','Hyperbaric Chamber','Defibrillator'],['Maitri Station','Bharati Station','ORV Sagar Nidhi']]
+];
+const PREFIX={'Research Vessel':'ORV','Snow Vehicle':'SV','Aircraft':'AIR','Generator':'G','Scientific Equipment':'SCI','Communication Equipment':'COM','Medical Equipment':'MED'};
+const ACOND=['Excellent','Good','Good','Fair','Needs Attention'];
+const ASTAT=['Operational','Operational','Operational','Operational','Operational','Operational','Operational','Standby','In Maintenance','Operational','Out of Service'];
+const assets=[]; const counters={};
+for(let i=0;i<72;i++){
+  const d=ASSET_DEF[i%7];
+  const type=d[0]; counters[type]=(counters[type]||0)+1;
+  const id=PREFIX[type]+'-'+pad(counters[type],2);
+  const thresh = type==='Research Vessel'?18000: type==='Aircraft'?4000: type==='Generator'?950: 3000;
+  const hours = Math.round(thresh*rf(.25,.99,3));
+  const exp = expeditions[[0,0,1,2,3,0,3,2][i%8]];
+  assets.push({
+    id, name:d[1][i%d[1].length], type, location:d[2][i%d[2].length],
+    condition:ACOND[(i*3)%ACOND.length], status:ASTAT[(i*5)%ASTAT.length],
+    expeditionId:exp.id, hours, threshold:thresh,
+    lastMaint: NOW - ri(20,240)*DAY, nextMaint: NOW + ri(-4,120)*DAY,
+    operator: pick(personnel).name, fuel: type==='Research Vessel'||type==='Snow Vehicle'||type==='Aircraft'? ri(18,96):null,
+    log:[]
+  });
+}
+assets.forEach(a=>{
+  for(let k=0;k<4;k++) a.log.push({ts:a.lastMaint - k*ri(40,120)*DAY, kind:pick(['Scheduled service','Component replacement','Inspection','Field repair']), by:pick(personnel.filter(p=>p.group==='Engineering')).name, note:pick(['Filters and oil replaced','Track tension re-set','Coolant flush','Firmware update','Bearing replaced'])});
+  a.log.sort((x,y)=>y.ts-x.ts);
+});
+const gen = assets.find(a=>a.id==='G-04'); if(gen){ gen.hours=920; gen.threshold=950; gen.status='Operational'; gen.condition='Needs Attention'; gen.nextMaint=NOW+3*DAY; gen.location='Maitri Station'; }
+const sv4 = assets.find(a=>a.id==='SV-04'); if(sv4){ sv4.hours=2870; sv4.threshold=3000; sv4.condition='Fair'; sv4.status='Operational'; sv4.location='Field Camp Bravo'; sv4.nextMaint=NOW+5*DAY; }
+const orv1 = assets.find(a=>a.id==='ORV-01'); if(orv1){ orv1.name='ORV Sagar Nidhi'; orv1.location='Southern Ocean 63S'; orv1.fuel=74; orv1.status='Operational'; }
+function assetRemaining(a){ return a.threshold - a.hours; }
+
+/* --- live map entities --- */
+const mapEntities = [];
+Object.keys(PLACES).forEach(n=>{
+  const p=PLACES[n];
+  if(['station','camp','depot','port'].indexOf(p.kind)>=0)
+    mapEntities.push({kind:p.kind==='camp'?'camp':(p.kind==='station'?'station':'facility'), id:n, name:n, lat:p.lat, lon:p.lon, theatre:p.theatre});
+});
+[['ORV-01','ORV Sagar Nidhi',-63.4,25.6],['ORV-02','MV Vasiliy Golovnin',-68.5,75.0],['ORV-03','ORV Bhaskara Sagar',-58.2,42.0]]
+  .forEach(s=> mapEntities.push({kind:'vessel', id:s[0], name:s[1], lat:s[2], lon:s[3], theatre:'antarctic'}));
+[['SV-01',-70.8,11.6],['SV-04',-71.35,12.7],['SV-07',-69.5,75.8],['AIR-01',-70.3,11.0],['SV-02',78.94,12.1]]
+  .forEach(v=> mapEntities.push({kind:'vehicle', id:v[0], name:(assets.find(a=>a.id===v[0])||{}).name||v[0], lat:v[1], lon:v[2], theatre:v[1]>0?'arctic':'antarctic'}));
+
+/* --- incidents --- */
+const WORKFLOW=['Emergency Detected','Incident Created','Location Identified','Resources Identified','Response Team Assigned','Team Dispatched','Response Tracked','Incident Resolved'];
+const RESPONSE_TEAMS=[
+  {id:'RT-ALPHA', name:'Medical Team Alpha', base:'Maitri Station', members:6, skills:'Trauma, hypothermia, evacuation', ready:true},
+  {id:'RT-BRAVO', name:'Rescue Team Bravo', base:'Maitri Station', members:5, skills:'Crevasse rescue, vehicle recovery', ready:true},
+  {id:'RT-CHARLIE',name:'Technical Team Charlie', base:'Bharati Station', members:4, skills:'Power, comms, mechanical', ready:true},
+  {id:'RT-DELTA', name:'Marine Response Delta', base:'ORV Sagar Nidhi', members:7, skills:'Man-overboard, fire, damage control', ready:false}
+];
+let incidents=[
+  { id:'INC-4417', type:'Medical Emergency', severity:'Critical', location:'Field Camp Bravo',
+    personId: personnel[3].id, ts: NOW-48*60000, stage:5, team:'RT-ALPHA', vehicle:'SV-04',
+    summary:'Suspected fracture and early hypothermia after crevasse slip during ice-core retrieval.',
+    log:[] },
+  { id:'INC-4418', type:'Vehicle Breakdown', severity:'High', location:'Ice Shelf Route 04',
+    personId: personnel[17].id, ts: NOW-3.5*HOUR, stage:3, team:null, vehicle:null,
+    summary:'Hägglunds BV206 hydraulic failure 14 km out on Route 04. Two occupants, shelter deployed.',
+    log:[] },
+  { id:'INC-4416', type:'Communication Loss', severity:'Medium', location:'Field Camp Charlie',
+    personId: personnel[58].id, ts: NOW-9*HOUR, stage:6, team:'RT-CHARLIE', vehicle:'SV-07',
+    summary:'VHF repeater offline; camp reachable on Iridium only. Spare repeater en route.',
+    log:[] },
+  { id:'INC-4412', type:'Fuel Spill', severity:'High', location:'Bharati Station', personId:null,
+    ts: NOW-4*DAY, stage:7, team:'RT-CHARLIE', vehicle:null,
+    summary:'40 L diesel spill at bladder farm during transfer. Contained, remediated, reported to CEP.',
+    log:[] }
+];
+incidents.forEach(inc=>{
+  for(let k=0;k<=inc.stage;k++) inc.log.push({ts: inc.ts + k*ri(4,22)*60000, text: WORKFLOW[k], by:'Command Centre'});
+});
+
+/* ===================== DERIVED SIGNALS ===================== */
+let alerts=[];
+function buildAlerts(){
+  const out=[];
+  incidents.filter(i=>i.stage<7).forEach(i=>{
+    out.push({id:'ALT-'+i.id, level:i.severity==='Critical'?'Critical':(i.severity==='High'?'High':'Medium'),
+      title:i.type+' at '+i.location, detail:i.summary, source:'Emergency Centre', ts:i.ts, ack:false, link:{page:'emergency'}});
+  });
+  inventory.forEach(it=>{
+    const s=invStatus(it), d=invDays(it);
+    if(s==='Critical') out.push({id:'ALT-'+it.id, level:'High', title:it.name+' below safety threshold at '+it.location,
+      detail:'Stock '+fmt(Math.round(it.qty))+' '+it.unit+' · consumption '+it.daily+' '+it.unit+'/day · '+d.toFixed(1)+' days of cover remaining.',
+      source:'Inventory Forecast', ts:NOW-ri(10,400)*60000, ack:false, link:{page:'inventory'}});
+    else if(s==='Warning' && it.expiry && it.expiry-NOW<30*DAY)
+      out.push({id:'ALT-X'+it.id, level:'Medium', title:it.name+' expiry within 30 days', detail:'Lot at '+it.location+' expires '+dfmt(it.expiry)+'. Rotate or consume first.',
+        source:'Inventory', ts:NOW-ri(60,900)*60000, ack:false, link:{page:'inventory'}});
+  });
+  personnel.filter(isOverdue).forEach(p=>{
+    out.push({id:'ALT-CI'+p.id, level:'Critical', title:'Check-in overdue — '+p.name,
+      detail:'Expected '+tfmt(p.expectedCheckIn)+', now '+tfmt(NOW)+'. Last known position '+p.location+'.',
+      source:'Personnel Tracking', ts:p.expectedCheckIn, ack:false, link:{page:'personnel', id:p.id}});
+  });
+  assets.filter(a=>assetRemaining(a)<=120 && a.status!=='Out of Service').slice(0,6).forEach(a=>{
+    out.push({id:'ALT-'+a.id, level:assetRemaining(a)<=40?'High':'Medium',
+      title:a.id+' '+a.name+' maintenance due in '+assetRemaining(a)+' operating hours',
+      detail:'Threshold '+fmt(a.threshold)+' h · current '+fmt(a.hours)+' h · located at '+a.location+'.',
+      source:'Predictive Maintenance', ts:NOW-ri(30,2000)*60000, ack:false, link:{page:'assets', id:a.id}});
+  });
+  cargo.filter(c=>c.status==='Delayed').slice(0,5).forEach(c=>{
+    out.push({id:'ALT-'+c.id, level:c.priority==='Critical'?'High':'Medium',
+      title:'Cargo '+c.id+' delayed — '+c.item, detail:'Held at '+c.location+'. Revised arrival '+dfmt(c.eta)+' for '+expName(c.expeditionId)+'.',
+      source:'Cargo Control', ts:NOW-ri(120,3000)*60000, ack:false, link:{page:'cargo', id:c.id}});
+  });
+  out.push({id:'ALT-WX01', level:'High', title:'Blizzard warning — Dronning Maud Land',
+    detail:'Katabatic surge forecast 06:00–22:00 tomorrow. Gusts 78 kn, visibility below 100 m. Field movement should be suspended.',
+    source:'Meteorology', ts:NOW-92*60000, ack:false, link:{page:'live'}});
+  out.push({id:'ALT-INF1', level:'Information', title:'SV-04 maintenance scheduled for 19 Dec',
+    detail:'Transport & Fleet has booked the 250-hour service window at Maitri workshop bay 2.', source:'Fleet', ts:NOW-5*HOUR, ack:false, link:{page:'assets', id:'SV-04'}});
+  out.push({id:'ALT-INF2', level:'Information', title:'Ice chart update received from INCOIS',
+    detail:'Prydz Bay fast-ice edge has retreated 6 nm since 09 Dec. Vessel approach window widens from 17 Dec.', source:'Navigation', ts:NOW-7*HOUR, ack:false, link:{page:'live'}});
+  const order={Critical:0,High:1,Medium:2,Information:3};
+  out.sort((a,b)=> order[a.level]-order[b.level] || b.ts-a.ts);
+  return out;
+}
+function expName(id){ const e=expeditions.find(x=>x.id===id); return e?e.code:'—'; }
+function expByCode(c){ return expeditions.find(x=>x.code===c); }
+function personById(id){ return personnel.find(p=>p.id===id); }
+
+function buildInsights(){
+  const fuel = inventory.find(i=>i.name==='Polar diesel (ATK)' && i.location==='Maitri Station');
+  const days = invDays(fuel);
+  const delayed = cargo.filter(c=>c.status==='Delayed');
+  const sci = delayed.filter(c=>c.category==='Scientific Equipment').length;
+  const due = assets.filter(a=>assetRemaining(a)<=120).length;
+  const od = personnel.filter(isOverdue).length;
+  const expiring = inventory.filter(i=>i.expiry && i.expiry-NOW<30*DAY);
+  return [
+    { sev:'high', icon:'fuel', title:'Fuel burn is running 14% above plan at Maitri',
+      body:'Observed 620 L/day against a planned 544 L/day since 02 Dec, driven by the power retrofit running both generators in parallel. At this rate the reserve reaches the safety floor in '+days.toFixed(1)+' days, ahead of the 17 Jan resupply.',
+      action:'Open fuel forecast', go:{page:'inventory'}, conf:0.91 },
+    { sev:'high', icon:'package', title: delayed.length+' shipments are slipping into research-critical windows',
+      body: sci+' of them carry scientific equipment, including CGO-SCI-1024 (ice-core drill head) needed for MSN-101 at Field Camp Bravo. Two missions lose their weather window if arrival slips past 28 Dec.',
+      action:'Review delayed cargo', go:{page:'cargo'}, conf:0.84 },
+    { sev:'med', icon:'wrench', title: due+' assets cross their maintenance threshold within 30 operating hours',
+      body:'Generator G-04 is the binding constraint at 920 of 950 hours. Servicing it during the blizzard hold on 15–16 Dec avoids taking the station off dual-generator supply during the retrofit.',
+      action:'Open maintenance plan', go:{page:'assets'}, conf:0.88 },
+    { sev: od?'high':'low', icon:'users', title: od+' personnel are past their expected check-in window',
+      body: od? 'All '+od+' are field-deployed. The longest gap is 1 h 15 m at Field Camp Bravo, which correlates with the VHF repeater outage logged as INC-4416 rather than a personnel event.' : 'Every deployed team has reported within its window.',
+      action:'Open personnel tracking', go:{page:'personnel'}, conf:0.76 },
+    { sev:'med', icon:'temp', title:'Weather will compress the cargo discharge window',
+      body:'The forecast katabatic surge removes roughly 16 working hours. Prioritising fuel and medical pallets over spare-part containers keeps every mission on schedule; the reverse order delays three.',
+      action:'Open live operations', go:{page:'live'}, conf:0.79 },
+    { sev:'low', icon:'boxes', title: expiring.length+' consumable lots expire inside 30 days',
+      body:'Mostly fresh produce at Maitri. Shifting the galley menu plan forward by four days avoids write-off and reduces the resupply pull by about 180 kg.',
+      action:'Open inventory', go:{page:'inventory'}, conf:0.72 }
+  ];
+}
+
+/* ===================== APP STATE ===================== */
+const state = {
+  page:'command', params:{},
+  expedition:'EXP-2027-01',
+  alertFilter:'All',
+  cargo:{q:'',status:'All',prio:'All',exp:'All'},
+  inv:{q:'',cat:'All',status:'All'},
+  people:{q:'',team:'All',status:'All'},
+  asset:{q:'',type:'All',status:'All'},
+  expTab:'overview',
+  mapTheatre:'antarctic', mapLayers:{station:true,camp:true,vessel:true,vehicle:true,facility:true,incident:true},
+  mapSel:null, notifOpen:false, sidebarOpen:false,
+  copilot:[], acked:{}, settings:{units:'metric', tz:'Station (UTC+5)', autoAlerts:true, sound:false, density:'comfortable'},
+  reportOut:null
+};
+try{
+  const saved = localStorage.getItem('polarops.v1');
+  if(saved){ const s=JSON.parse(saved); Object.assign(state.settings, s.settings||{}); state.acked = s.acked||{}; }
+}catch(e){}
+function persist(){ try{ localStorage.setItem('polarops.v1', JSON.stringify({settings:state.settings, acked:state.acked})); }catch(e){} }
+
+alerts = buildAlerts();
+function refreshSignals(){ alerts = buildAlerts(); alerts.forEach(a=>{ if(state.acked[a.id]) a.ack=true; }); }
+refreshSignals();
+
+/* ===================== UI PRIMITIVES ===================== */
+function toast(msg, kind){
+  const root=$('#toast-root'); const d=document.createElement('div');
+  const c = kind==='bad'?'border-crimson/50 text-crimson':kind==='warn'?'border-amber1/50 text-amber1':'border-aurora/50 text-aurora';
+  d.className='toast pointer-events-auto glass border '+c+' px-3.5 py-2.5 rounded text-[13px] flex items-center gap-2 shadow-lg max-w-[340px]';
+  d.innerHTML = ic(kind==='bad'?'alert':'check','w-4 h-4 shrink-0')+'<span class="text-frost">'+esc(msg)+'</span>';
+  root.appendChild(d); setTimeout(()=>{ d.style.transition='opacity .25s'; d.style.opacity='0'; setTimeout(()=>d.remove(),260); }, 3200);
+}
+function openModal(html, size){
+  const r=$('#modal-root');
+  r.innerHTML='<div class="fixed inset-0 z-[70] flex items-start md:items-center justify-center p-3 md:p-6 overflow-y-auto" data-act="modal-backdrop">'+
+    '<div class="absolute inset-0 bg-abyss/80 backdrop-blur-sm"></div>'+
+    '<div class="modal-in relative w-full '+(size||'max-w-2xl')+' my-auto glass border border-line2 rounded-lg shadow-2xl" data-stop="1">'+html+'</div></div>';
+}
+function closeModal(){ $('#modal-root').innerHTML=''; }
+function modalHead(title, sub){
+  return '<div class="flex items-start justify-between gap-4 px-5 py-4 border-b border-line">'+
+    '<div><h3 class="cond text-[19px] font-600 tracking-wide text-frost">'+esc(title)+'</h3>'+
+    (sub?'<p class="text-[12.5px] text-beam mt-0.5">'+esc(sub)+'</p>':'')+'</div>'+
+    '<button data-act="close-modal" class="text-beam hover:text-frost linkish p-1 -m-1 rounded">'+ic('x','w-5 h-5')+'</button></div>';
+}
+function btn(label, act, opts){
+  opts=opts||{};
+  const base='inline-flex items-center gap-2 px-3 py-2 rounded text-[12.5px] font-500 linkish select-none ';
+  const styles={
+    primary:'bg-glacier/15 text-ice border border-glacier/40 hover:bg-glacier/25',
+    ghost:'text-beam border border-line hover:border-line2 hover:text-frost',
+    danger:'bg-crimson/15 text-crimson border border-crimson/40 hover:bg-crimson/25',
+    solid:'bg-crimson text-white hover:bg-crimson/85 border border-crimson',
+    ok:'bg-moss/15 text-moss border border-moss/40 hover:bg-moss/25'
+  };
+  const data = Object.keys(opts.data||{}).map(k=>' data-'+k+'="'+esc(opts.data[k])+'"').join('');
+  return '<button data-act="'+act+'"'+data+' class="'+base+(styles[opts.kind||'ghost'])+' '+(opts.cls||'')+'">'+
+    (opts.icon?ic(opts.icon,'w-4 h-4'):'')+'<span>'+esc(label)+'</span></button>';
+}
+function chip(text, tone){
+  const map={ok:'bg-moss/12 text-moss border-moss/30', warn:'bg-amber1/12 text-amber1 border-amber1/30',
+    bad:'bg-crimson/12 text-crimson border-crimson/30', info:'bg-glacier/12 text-ice border-glacier/30',
+    idle:'bg-white/5 text-beam border-line2'};
+  return '<span class="inline-flex items-center gap-1.5 px-2 py-[3px] rounded border text-[11px] font-500 whitespace-nowrap '+(map[tone]||map.idle)+'">'+esc(text)+'</span>';
+}
+const STATUS_TONE={
+  'Active':'ok','Operational':'ok','Healthy':'ok','Arrived':'ok','Verified':'ok','Stored':'ok','On Duty':'ok','Resolved':'ok','Completed':'ok','Cleared':'ok',
+  'Warning':'warn','Delayed':'warn','In Maintenance':'warn','Needs Attention':'warn','Fair':'warn','Medical Hold':'warn','Blocked':'warn','Planning':'warn',
+  'Critical':'bad','Out of Service':'bad','Emergency':'bad',
+  'In Transit':'info','Dispatched':'info','On Mission':'info','In Progress':'info','Standby':'info','Packed':'info',
+  'Planned':'idle','Archived':'idle','Off-Station':'idle','Resting':'idle','Scheduled':'idle'
+};
+function statusChip(s){ return chip(s, STATUS_TONE[s]||'idle'); }
+const LEVEL_TONE={Critical:'bad',High:'warn',Medium:'info',Information:'idle'};
+const LEVEL_LED={Critical:'led-crit',High:'led-warn',Medium:'led-info',Information:'led-idle'};
+
+function kpi(label, value, sub, tone, icon, act){
+  const accent={ok:'text-moss',warn:'text-amber1',bad:'text-crimson',info:'text-ice'}[tone]||'text-frost';
+  const bar={ok:'bg-moss',warn:'bg-amber1',bad:'bg-crimson',info:'bg-glacier'}[tone]||'bg-line2';
+  return '<button data-act="'+(act||'noop')+'" class="group relative text-left panel rounded-[3px] p-3.5 hover:border-line2 linkish overflow-hidden">'+
+    '<span class="absolute left-0 top-0 h-full w-[2px] '+bar+' opacity-70"></span>'+
+    '<div class="flex items-start justify-between"><span class="eyebrow">'+esc(label)+'</span>'+
+    '<span class="'+accent+' opacity-60 group-hover:opacity-100 linkish">'+ic(icon,'w-4 h-4')+'</span></div>'+
+    '<div class="tick '+accent+' text-[30px] leading-none mt-2.5 font-600">'+value+'</div>'+
+    '<div class="text-[11.5px] text-beam mt-1.5">'+sub+'</div></button>';
+}
+function healthBar(label, v){
+  const tone = v>=90?'#3FCF8E': v>=75?'#7FD7FF': v>=60?'#F0A429':'#F0524D';
+  return '<div class="flex items-center gap-3">'+
+    '<span class="w-[76px] text-[12px] text-beam">'+esc(label)+'</span>'+
+    '<div class="flex-1 h-[6px] bg-white/6 rounded-sm overflow-hidden"><div style="width:'+v+'%;background:'+tone+'" class="h-full rounded-sm"></div></div>'+
+    '<span class="tick text-[12.5px] w-9 text-right" style="color:'+tone+'">'+v+'</span></div>';
+}
+function sectionHead(title, sub, right){
+  return '<div class="flex items-end justify-between gap-4 mb-3 flex-wrap">'+
+   '<div><h2 class="cond text-[17px] font-600 tracking-wide text-frost leading-tight">'+esc(title)+'</h2>'+
+   (sub?'<p class="text-[12px] text-beam mt-0.5">'+esc(sub)+'</p>':'')+'</div>'+
+   (right?'<div class="flex items-center gap-2 flex-wrap">'+right+'</div>':'')+'</div>';
+}
+function pageHead(title, sub, right){
+  return '<div class="flex items-end justify-between gap-4 flex-wrap mb-5 pb-4 border-b border-line">'+
+    '<div><div class="eyebrow mb-1.5">'+esc(sub||'')+'</div>'+
+    '<h1 class="cond text-[26px] md:text-[30px] font-600 tracking-wide leading-none text-frost">'+esc(title)+'</h1></div>'+
+    (right?'<div class="flex items-center gap-2 flex-wrap">'+right+'</div>':'')+'</div>';
+}
+function emptyState(msg, hint){
+  return '<div class="py-14 text-center"><div class="inline-flex items-center justify-center w-10 h-10 rounded border border-line text-beam mb-3">'+ic('search','w-5 h-5')+'</div>'+
+  '<p class="text-[13.5px] text-frost">'+esc(msg)+'</p><p class="text-[12px] text-beam mt-1">'+esc(hint||'')+'</p></div>';
+}
+function selectBox(name, value, options, cls){
+  return '<select data-sel="'+name+'" class="'+(cls||'')+' bg-deck border border-line rounded px-2.5 py-[7px] text-[12.5px] text-frost hover:border-line2 linkish">'+
+    options.map(o=>'<option '+(o===value?'selected':'')+' value="'+esc(o)+'">'+esc(o)+'</option>').join('')+'</select>';
+}
+function searchBox(name, value, ph){
+  return '<div class="relative"><span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-beam">'+ic('search','w-3.5 h-3.5')+'</span>'+
+  '<input data-inp="'+name+'" value="'+esc(value)+'" placeholder="'+esc(ph)+'" class="bg-deck border border-line rounded pl-8 pr-3 py-[7px] text-[12.5px] w-full md:w-60 focus:border-glacier/60 outline-none linkish"/></div>';
+}
+
+/* ===================== CHARTS (hand-rolled SVG) ===================== */
+function lineChart(series, opts){
+  opts=opts||{}; const w=opts.w||640, h=opts.h||180, pl=38, pr=12, pt=12, pb=22;
+  const all=[].concat.apply([],series.map(s=>s.data));
+  let min = opts.min!=null?opts.min:Math.min.apply(null,all), max = opts.max!=null?opts.max:Math.max.apply(null,all);
+  if(min===max){max=min+1;} const span=max-min; min-=span*0.12; max+=span*0.12;
+  const n=series[0].data.length;
+  const X=i=> pl + (w-pl-pr)*(n===1?0.5:i/(n-1));
+  const Y=v=> pt + (h-pt-pb)*(1-(v-min)/(max-min));
+  let g='';
+  for(let k=0;k<=4;k++){ const y=pt+(h-pt-pb)*k/4; const val=max-(max-min)*k/4;
+    g+='<line x1="'+pl+'" x2="'+(w-pr)+'" y1="'+y.toFixed(1)+'" y2="'+y.toFixed(1)+'" stroke="#1D2E4C" stroke-width="1"/>'+
+       '<text x="'+(pl-6)+'" y="'+(y+3.5).toFixed(1)+'" text-anchor="end" fill="#6E87AD" font-size="9.5" font-family="IBM Plex Mono">'+(Math.abs(val)>=1000?Math.round(val/100)/10+'k':Math.round(val*10)/10)+'</text>';
+  }
+  series.forEach(s=>{
+    const pts=s.data.map((v,i)=>X(i).toFixed(1)+','+Y(v).toFixed(1)).join(' ');
+    if(s.fill) g+='<polygon points="'+X(0).toFixed(1)+','+(h-pb)+' '+pts+' '+X(n-1).toFixed(1)+','+(h-pb)+'" fill="'+s.color+'" opacity=".10"/>';
+    g+='<polyline points="'+pts+'" fill="none" stroke="'+s.color+'" stroke-width="'+(s.width||1.9)+'" stroke-linejoin="round" stroke-linecap="round" '+(s.dash?'stroke-dasharray="4 4"':'')+'/>';
+    if(s.dots) s.data.forEach((v,i)=> g+='<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(v).toFixed(1)+'" r="2.2" fill="'+s.color+'"/>');
+  });
+  if(opts.threshold!=null && opts.threshold>=min && opts.threshold<=max){
+    g+='<line x1="'+pl+'" x2="'+(w-pr)+'" y1="'+Y(opts.threshold).toFixed(1)+'" y2="'+Y(opts.threshold).toFixed(1)+'" stroke="#F0524D" stroke-width="1" stroke-dasharray="5 4"/>'+
+       '<text x="'+(w-pr)+'" y="'+(Y(opts.threshold)-5).toFixed(1)+'" text-anchor="end" fill="#F0524D" font-size="9.5" font-family="IBM Plex Mono">'+esc(opts.thresholdLabel||'threshold')+'</text>';
+  }
+  (opts.labels||[]).forEach((l,i)=>{ if(!l) return;
+    g+='<text x="'+X(i).toFixed(1)+'" y="'+(h-6)+'" text-anchor="middle" fill="#6E87AD" font-size="9.5" font-family="IBM Plex Mono">'+esc(l)+'</text>'; });
+  return '<svg viewBox="0 0 '+w+' '+h+'" class="w-full h-auto" preserveAspectRatio="none" style="max-height:'+h+'px">'+g+'</svg>';
+}
+function barChart(items, opts){
+  opts=opts||{}; const w=opts.w||640, h=opts.h||180, pl=38, pr=10, pt=10, pb=26;
+  const max=opts.max||Math.max.apply(null,items.map(i=>i.v))*1.15||1;
+  const bw=(w-pl-pr)/items.length;
+  let g='';
+  for(let k=0;k<=3;k++){ const y=pt+(h-pt-pb)*k/3;
+    g+='<line x1="'+pl+'" x2="'+(w-pr)+'" y1="'+y+'" y2="'+y+'" stroke="#1D2E4C"/>'+
+       '<text x="'+(pl-6)+'" y="'+(y+3.5)+'" text-anchor="end" fill="#6E87AD" font-size="9.5" font-family="IBM Plex Mono">'+Math.round(max-(max*k/3))+'</text>';
+  }
+  items.forEach((it,i)=>{
+    const bh=(h-pt-pb)*(it.v/max), x=pl+i*bw+bw*0.22, y=h-pb-bh;
+    g+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(bw*0.56).toFixed(1)+'" height="'+Math.max(1,bh).toFixed(1)+'" fill="'+(it.color||'#38BDF8')+'" opacity=".82" rx="1"/>'+
+       '<text x="'+(pl+i*bw+bw/2).toFixed(1)+'" y="'+(h-9)+'" text-anchor="middle" fill="#8AA6CC" font-size="9.5" font-family="IBM Plex Mono">'+esc(it.l)+'</text>';
+  });
+  return '<svg viewBox="0 0 '+w+' '+h+'" class="w-full h-auto" style="max-height:'+h+'px">'+g+'</svg>';
+}
+function donut(value, label, color){
+  const r=34, c=2*Math.PI*r, off=c*(1-value/100);
+  return '<svg viewBox="0 0 90 90" class="w-[90px] h-[90px]">'+
+    '<circle cx="45" cy="45" r="'+r+'" fill="none" stroke="#1D2E4C" stroke-width="7"/>'+
+    '<circle cx="45" cy="45" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="7" stroke-linecap="round" stroke-dasharray="'+c.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'" transform="rotate(-90 45 45)"/>'+
+    '<text x="45" y="42" text-anchor="middle" fill="#E8F1FB" font-size="17" font-family="IBM Plex Mono">'+value+'%</text>'+
+    '<text x="45" y="56" text-anchor="middle" fill="#6E87AD" font-size="8.5" font-family="IBM Plex Mono">'+esc(label)+'</text></svg>';
+}
+function spark(data, color, w, h){
+  w=w||110; h=h||28; const min=Math.min.apply(null,data), max=Math.max.apply(null,data)||1;
+  const pts=data.map((v,i)=>(i/(data.length-1)*w).toFixed(1)+','+(h-((v-min)/((max-min)||1))*(h-4)-2).toFixed(1)).join(' ');
+  return '<svg viewBox="0 0 '+w+' '+h+'" class="w-[110px] h-[28px]"><polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+}
+
+/* ===================== POLAR MAP ===================== */
+function project(lat, lon, theatre, R, cx, cy){
+  const a = lon*Math.PI/180;
+  let r;
+  if(theatre==='antarctic') r = clamp((lat+90)/60,0,1)*R;      // -90 .. -30
+  else r = clamp((90-lat)/25,0,1)*R;                            // 90 .. 65
+  if(theatre==='antarctic') return {x:cx + r*Math.sin(a), y:cy + r*Math.cos(a)};
+  return {x:cx + r*Math.sin(a), y:cy - r*Math.cos(a)};
+}
+const coastSeed = mulberry32(9931);
+function coastPath(cx,cy,R,scale,wob){
+  let d='', pts=[];
+  for(let i=0;i<56;i++){
+    const a=i/56*Math.PI*2;
+    const rr = R*scale*(1 + wob*Math.sin(a*3+1.2) + wob*0.7*Math.sin(a*5+.4) + wob*0.4*Math.sin(a*8+2.1));
+    pts.push([cx+rr*Math.sin(a), cy+rr*Math.cos(a)]);
+  }
+  pts.forEach((p,i)=>{ d += (i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1); });
+  return d+'Z';
+}
+function entityIcon(kind, x, y, sel){
+  const s = sel?1.35:1;
+  const col = {station:'#7FD7FF', camp:'#2DD4BF', vessel:'#F0A429', vehicle:'#9CC4EC', facility:'#8AA6CC', incident:'#F0524D'}[kind]||'#8AA6CC';
+  let shape='';
+  if(kind==='station') shape='<rect x="'+(x-4.5*s)+'" y="'+(y-4.5*s)+'" width="'+(9*s)+'" height="'+(9*s)+'" fill="'+col+'" stroke="#050A14" stroke-width="1"/>';
+  else if(kind==='vessel') shape='<polygon points="'+x+','+(y-6*s)+' '+(x+5.5*s)+','+(y+4*s)+' '+(x-5.5*s)+','+(y+4*s)+'" fill="'+col+'" stroke="#050A14" stroke-width="1"/>';
+  else if(kind==='vehicle') shape='<polygon points="'+x+','+(y-5*s)+' '+(x+5*s)+','+y+' '+x+','+(y+5*s)+' '+(x-5*s)+','+y+'" fill="'+col+'" stroke="#050A14" stroke-width="1"/>';
+  else if(kind==='camp') shape='<circle cx="'+x+'" cy="'+y+'" r="'+(4.2*s)+'" fill="'+col+'" stroke="#050A14" stroke-width="1"/>';
+  else if(kind==='incident') shape='<circle cx="'+x+'" cy="'+y+'" r="6" fill="none" stroke="'+col+'" stroke-width="1.6" class="pulse-ring"/><circle cx="'+x+'" cy="'+y+'" r="4.5" fill="'+col+'"/>';
+  else shape='<circle cx="'+x+'" cy="'+y+'" r="3.2" fill="none" stroke="'+col+'" stroke-width="1.6"/>';
+  return shape + (sel?'<circle cx="'+x+'" cy="'+y+'" r="13" fill="none" stroke="'+col+'" stroke-width="1" opacity=".8"/>':'');
+}
+function polarMap(opts){
+  opts=opts||{}; const W=opts.w||720, H=opts.h||460, cx=W/2, cy=H/2, R=Math.min(W,H)/2-26;
+  const th=state.mapTheatre;
+  let g='';
+  g+='<defs><radialGradient id="icefill" cx="50%" cy="50%"><stop offset="0%" stop-color="#16324F"/><stop offset="100%" stop-color="#0B1A2E"/></radialGradient>'+
+     '<radialGradient id="seafill" cx="50%" cy="50%"><stop offset="0%" stop-color="#091426"/><stop offset="100%" stop-color="#060D1A"/></radialGradient></defs>';
+  g+='<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="url(#seafill)" stroke="#1D2E4C"/>';
+  // latitude rings
+  const ringLabels = th==='antarctic'?['80°S','70°S','60°S','50°S','40°S']:['85°N','80°N','75°N','70°N'];
+  ringLabels.forEach((lbl,i)=>{
+    const rr = R*( th==='antarctic' ? (10+i*10)/60 : (5+i*5)/25 );
+    g+='<circle cx="'+cx+'" cy="'+cy+'" r="'+rr.toFixed(1)+'" fill="none" stroke="#1D2E4C" stroke-dasharray="2 5"/>'+
+       '<text x="'+(cx+4)+'" y="'+(cy-rr+11).toFixed(1)+'" fill="#43597E" font-size="8.5" font-family="IBM Plex Mono">'+lbl+'</text>';
+  });
+  for(let a=0;a<360;a+=30){
+    const p=project(th==='antarctic'?-30:65, a, th, R, cx, cy);
+    g+='<line x1="'+cx+'" y1="'+cy+'" x2="'+p.x.toFixed(1)+'" y2="'+p.y.toFixed(1)+'" stroke="#16253F" stroke-width="1"/>';
+  }
+  // landmass
+  if(th==='antarctic'){
+    g+='<path d="'+coastPath(cx,cy,R,0.42,0.13)+'" fill="url(#icefill)" stroke="#2A4568" stroke-width="1.2"/>';
+    g+='<path d="'+coastPath(cx,cy,R,0.52,0.16)+'" fill="none" stroke="#1E344F" stroke-width="1" stroke-dasharray="3 4"/>';
+    g+='<text x="'+cx+'" y="'+(cy+4)+'" text-anchor="middle" fill="#2E4B70" font-size="10" font-family="Barlow Semi Condensed" letter-spacing="3">SOUTH POLE</text>';
+  } else {
+    g+='<path d="'+coastPath(cx,cy,R,0.78,0.10)+'" fill="none" stroke="#24405F" stroke-width="1" stroke-dasharray="4 5"/>';
+    g+='<circle cx="'+cx+'" cy="'+cy+'" r="'+(R*0.46)+'" fill="url(#icefill)" opacity=".55" stroke="#2A4568" stroke-dasharray="6 5"/>';
+    g+='<text x="'+cx+'" y="'+(cy+4)+'" text-anchor="middle" fill="#2E4B70" font-size="10" font-family="Barlow Semi Condensed" letter-spacing="3">NORTH POLE</text>';
+  }
+  g+='<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="#28406B" stroke-dasharray="1 6"/>';
+  // radar sweep
+  g+='<g class="sweep" style="transform-origin:'+cx+'px '+cy+'px"><path d="M'+cx+' '+cy+' L'+(cx)+' '+(cy-R)+' A'+R+' '+R+' 0 0 1 '+(cx+R*0.42)+' '+(cy-R*0.9)+' Z" fill="#7FD7FF" opacity=".05"/></g>';
+
+  // routes for current expedition
+  const exp=expeditions.find(e=>e.id===state.expedition);
+  if(exp && opts.route!==false){
+    const pts = exp.route.map(r=>PLACES[r.place]).filter(p=>p&&p.theatre===th).map(p=>project(p.lat,p.lon,th,R,cx,cy));
+    if(pts.length>1) g+='<polyline points="'+pts.map(p=>p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ')+'" fill="none" stroke="#38BDF8" stroke-width="1.2" stroke-dasharray="6 4" opacity=".55"/>';
+  }
+  // entities
+  const ents = mapEntities.filter(e=>e.theatre===th && state.mapLayers[e.kind]!==false);
+  ents.forEach(e=>{
+    const p=project(e.lat,e.lon,th,R,cx,cy);
+    const sel = state.mapSel===e.id;
+    g+='<g data-marker="'+esc(e.id)+'" style="cursor:pointer">'+entityIcon(e.kind,p.x,p.y,sel)+
+       '<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="13" fill="transparent"/>'+
+       (e.kind==='station'||sel?'<text x="'+(p.x+9).toFixed(1)+'" y="'+(p.y+3.5).toFixed(1)+'" fill="'+(sel?'#E8F1FB':'#8AA6CC')+'" font-size="9.5" font-family="IBM Plex Mono">'+esc(e.name.replace(' Station',''))+'</text>':'')+'</g>';
+  });
+  if(state.mapLayers.incident!==false){
+    incidents.filter(i=>i.stage<7).forEach(i=>{
+      const pl=PLACES[i.location]; if(!pl||pl.theatre!==th) return;
+      const p=project(pl.lat,pl.lon,th,R,cx,cy);
+      g+='<g data-marker="'+esc(i.id)+'" style="cursor:pointer">'+entityIcon('incident',p.x,p.y,state.mapSel===i.id)+
+         '<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="14" fill="transparent"/></g>';
+    });
+  }
+  return '<svg viewBox="0 0 '+W+' '+H+'" class="w-full h-auto select-none" data-map="1">'+g+'</svg>';
+}
+function markerCard(id){
+  const ent = mapEntities.find(e=>e.id===id);
+  const inc = incidents.find(i=>i.id===id);
+  if(inc){
+    const p=personById(inc.personId);
+    return infoCard('Incident '+inc.id, inc.type, [
+      ['Severity', inc.severity],['Location', inc.location],['Stage', WORKFLOW[inc.stage]],
+      ['Reported by', p?p.name:'Station sensor'],['Opened', dtfmt(inc.ts)]
+    ], btn('Open in Emergency Centre','go',{kind:'danger',icon:'siren',data:{page:'emergency'}}), 'bad');
+  }
+  if(!ent) return '';
+  if(ent.kind==='vessel'){
+    const a=assets.find(x=>x.id===ent.id)||{};
+    const crew=personnel.filter(p=>p.location.indexOf('Southern Ocean')>=0||p.location==='Prydz Bay Anchorage').length;
+    const load=cargo.filter(c=>c.location==='ORV Sagar Nidhi').length;
+    return infoCard('VESSEL '+ent.id, ent.name, [
+      ['Status', a.status||'In Transit'],['Crew', crew],['Cargo aboard', load+' consignments'],
+      ['Fuel', (a.fuel||74)+'%'],['Destination', 'Prydz Bay → Bharati Station'],['Position', ent.lat.toFixed(2)+'°S '+ent.lon.toFixed(2)+'°E']
+    ], btn('Open asset record','go',{icon:'ship',data:{page:'assets',id:ent.id}}), 'warn');
+  }
+  if(ent.kind==='vehicle'){
+    const a=assets.find(x=>x.id===ent.id)||{};
+    return infoCard('VEHICLE '+ent.id, a.name||ent.name, [
+      ['Status', a.status||'Operational'],['Condition', a.condition||'Good'],['Operating hours', fmt(a.hours)+' / '+fmt(a.threshold)],
+      ['Fuel', (a.fuel||60)+'%'],['Location', a.location||'—']
+    ], btn('Open asset record','go',{icon:'truck',data:{page:'assets',id:ent.id}}), 'info');
+  }
+  const here = personnel.filter(p=>p.location===ent.name);
+  const stock = inventory.filter(i=>i.location===ent.name);
+  const crit = stock.filter(i=>invStatus(i)==='Critical').length;
+  return infoCard(ent.kind==='camp'?'FIELD CAMP':'FACILITY', ent.name, [
+    ['Personnel on site', here.length],['Inventory lines', stock.length],['Critical stock lines', crit],
+    ['Assets', assets.filter(a=>a.location===ent.name).length],
+    ['Coordinates', Math.abs(ent.lat).toFixed(2)+'°'+(ent.lat<0?'S':'N')+' '+Math.abs(ent.lon).toFixed(2)+'°'+(ent.lon<0?'W':'E')]
+  ], btn('View personnel here','go',{icon:'users',data:{page:'personnel'}}), crit?'warn':'ok');
+}
+function infoCard(eyebrow, title, rows, action, tone){
+  const bar={ok:'bg-moss',warn:'bg-amber1',bad:'bg-crimson',info:'bg-glacier'}[tone]||'bg-line2';
+  return '<div class="relative panel-flat rounded-[3px] p-3.5">'+
+    '<span class="absolute left-0 top-0 h-full w-[2px] '+bar+'"></span>'+
+    '<div class="eyebrow">'+esc(eyebrow)+'</div>'+
+    '<div class="cond text-[17px] font-600 text-frost mt-0.5 mb-2.5">'+esc(title)+'</div>'+
+    '<dl class="space-y-1.5">'+rows.map(r=>'<div class="flex justify-between gap-3 text-[12.5px]"><dt class="text-beam">'+esc(r[0])+'</dt><dd class="tick text-frost text-right">'+esc(r[1])+'</dd></div>').join('')+'</dl>'+
+    (action?'<div class="mt-3">'+action+'</div>':'')+'</div>';
+}
+
+/* ===================== SHELL ===================== */
+const NAV=[
+  ['command','Command Centre','gauge'],
+  ['expeditions','Expeditions','compass'],
+  ['live','Live Operations','radar'],
+  ['cargo','Cargo','package'],
+  ['inventory','Inventory','boxes'],
+  ['personnel','Personnel','users'],
+  ['assets','Assets','truck'],
+  ['emergency','Emergency Centre','siren'],
+  ['insights','Smart Insights','sparkles'],
+  ['analytics','Analytics','chart'],
+  ['reports','Reports','file'],
+  ['copilot','AI Copilot','bot'],
+  ['settings','Settings','settings']
+];
+function navList(){
+  const crit = alerts.filter(a=>a.level==='Critical'&&!a.ack).length;
+  const inv = inventory.filter(i=>invStatus(i)!=='Healthy').length;
+  const badges={emergency:incidents.filter(i=>i.stage<7).length, inventory:inv, insights:null};
+  return NAV.map(n=>{
+    const on = state.page===n[0] || (n[0]==='expeditions' && state.page==='expedition');
+    const b = badges[n[0]];
+    return '<button data-act="go" data-page="'+n[0]+'" class="relative w-full flex items-center gap-2.5 px-3 py-[9px] text-[13px] linkish rounded-[3px] '+
+      (on?'nav-active':'text-beam hover:text-frost hover:bg-white/4')+'">'+
+      '<span class="navbar-ind absolute left-0 top-1.5 bottom-1.5 w-[2px] bg-ice rounded-r '+(on?'opacity-100':'opacity-0')+'"></span>'+
+      ic(n[2],'w-4 h-4 shrink-0 '+(on?'text-ice':''))+'<span class="truncate">'+n[1]+'</span>'+
+      (b?'<span class="ml-auto tick text-[10.5px] px-1.5 py-[1px] rounded '+(n[0]==='emergency'?'bg-crimson/20 text-crimson':'bg-amber1/15 text-amber1')+'">'+b+'</span>':'')+
+      '</button>';
+  }).join('');
+}
+function renderSidebar(){
+  const html =
+   '<div class="px-4 py-4 border-b border-line">'+
+     '<div class="flex items-center gap-2.5">'+
+       '<svg viewBox="0 0 32 32" class="w-8 h-8 shrink-0"><circle cx="16" cy="16" r="14" fill="none" stroke="#7FD7FF" stroke-width="1.2" opacity=".5"/><circle cx="16" cy="16" r="8" fill="none" stroke="#7FD7FF" stroke-width="1.2" opacity=".35"/><path d="M16 2v28M2 16h28M6 6l20 20M26 6 6 26" stroke="#38BDF8" stroke-width="1" opacity=".45"/><circle cx="16" cy="16" r="3" fill="#7FD7FF"/></svg>'+
+       '<div><div class="cond text-[17px] font-700 leading-none tracking-wide text-frost">POLAR<span class="text-ice">OPS</span></div>'+
+       '<div class="eyebrow mt-1">NCPOR · MoES</div></div>'+
+     '</div>'+
+   '</div>'+
+   '<nav class="flex-1 overflow-y-auto p-2 space-y-[2px]">'+navList()+'</nav>'+
+   '<div class="p-3 border-t border-line">'+
+     '<button data-act="sos" class="w-full flex items-center justify-center gap-2 py-2.5 rounded-[3px] bg-crimson/12 border border-crimson/45 text-crimson hover:bg-crimson/22 linkish font-600 cond tracking-[.16em] text-[14px]">'+
+       ic('siren','w-4 h-4')+'SOS</button>'+
+     '<p class="text-[10.5px] text-beam/70 mt-2 leading-snug text-center">Raises an incident and dispatches the nearest response team.</p>'+
+   '</div>';
+  $('#sidebar').innerHTML = html;
+  const m=$('#sidebar-mobile');
+  if(state.sidebarOpen){
+    m.className='fixed inset-0 z-[60] md:hidden';
+    m.innerHTML='<div class="absolute inset-0 bg-abyss/75" data-act="close-sidebar"></div>'+
+      '<div class="absolute left-0 top-0 bottom-0 w-[250px] glass border-r border-line2 flex flex-col">'+html+'</div>';
+  } else { m.className='hidden'; m.innerHTML=''; }
+}
+function renderTopbar(){
+  const exp = expeditions.find(e=>e.id===state.expedition)||expeditions[0];
+  const unread = alerts.filter(a=>!a.ack).length;
+  $('#topbar').innerHTML =
+  '<div class="flex items-center gap-2 md:gap-3 px-3 md:px-5 h-[58px]">'+
+    '<button data-act="toggle-sidebar" class="md:hidden text-beam hover:text-frost p-1.5 -ml-1.5">'+ic('menu','w-5 h-5')+'</button>'+
+    '<div class="relative flex-1 max-w-[420px]">'+
+      '<span class="absolute left-3 top-1/2 -translate-y-1/2 text-beam">'+ic('search','w-4 h-4')+'</span>'+
+      '<input id="globalsearch" placeholder="Search expeditions, cargo, people, assets…" autocomplete="off" '+
+      'class="w-full bg-deck/80 border border-line rounded-[3px] pl-9 pr-3 py-[8px] text-[12.5px] focus:border-glacier/60 outline-none linkish"/>'+
+      '<div id="searchresults" class="hidden absolute z-50 mt-1.5 w-full max-h-[380px] overflow-y-auto glass border border-line2 rounded-[3px] shadow-2xl"></div>'+
+    '</div>'+
+    '<div class="hidden lg:flex items-center gap-2 px-3 py-[7px] rounded-[3px] border border-line bg-deck/60">'+
+      '<span class="eyebrow">CURRENT</span>'+
+      '<select data-sel="expedition" class="bg-transparent text-[12.5px] text-frost outline-none max-w-[190px]">'+
+        expeditions.filter(e=>e.status!=='Archived').map(e=>'<option value="'+e.id+'" '+(e.id===state.expedition?'selected':'')+'>'+esc(e.code+' · '+e.name)+'</option>').join('')+
+      '</select></div>'+
+    '<div class="hidden sm:flex items-center gap-1.5 text-[11.5px] text-moss px-2.5 py-[7px] rounded-[3px] border border-moss/25 bg-moss/6" title="INMARSAT link healthy">'+
+      ic('wifi','w-3.5 h-3.5')+'<span class="tick">LINK 96%</span></div>'+
+    '<div class="hidden md:block tick text-[12px] text-beam px-2">'+tfmt(NOW)+' <span class="text-beam/60">UTC+5</span></div>'+
+    '<button data-act="notif" class="relative text-beam hover:text-frost p-2 rounded linkish">'+ic('bell','w-[18px] h-[18px]')+
+      (unread?'<span class="absolute top-1 right-1 tick text-[9px] bg-crimson text-white rounded-full px-1 leading-[14px] min-w-[14px] text-center">'+unread+'</span>':'')+'</button>'+
+    '<button data-act="profile" class="flex items-center gap-2 pl-2 pr-1 py-1 rounded linkish hover:bg-white/4">'+
+      '<span class="w-7 h-7 rounded-[3px] bg-glacier/18 border border-glacier/35 text-ice grid place-items-center tick text-[11px]">AD</span>'+
+      '<span class="hidden xl:block text-left leading-tight"><span class="block text-[12.5px] text-frost">'+esc(exp.lead)+'</span><span class="block text-[10.5px] text-beam">Expedition Leader</span></span></button>'+
+  '</div>'+
+  (state.notifOpen?notifPanel():'');
+}
+function notifPanel(){
+  const list = alerts.slice(0,8);
+  return '<div class="absolute right-3 top-[56px] z-50 w-[360px] max-w-[92vw] glass border border-line2 rounded-[3px] shadow-2xl" data-stop="1">'+
+    '<div class="flex items-center justify-between px-3.5 py-2.5 border-b border-line">'+
+      '<span class="cond text-[14px] tracking-wide text-frost">Notifications</span>'+
+      '<button data-act="ack-all" class="text-[11.5px] text-ice hover:underline">Mark all read</button></div>'+
+    '<div class="max-h-[360px] overflow-y-auto divide-y divide-[#152238]">'+
+      list.map(a=>'<button data-act="go" data-page="'+(a.link?a.link.page:'command')+'" class="w-full text-left px-3.5 py-2.5 hover:bg-white/4 linkish flex gap-2.5">'+
+        '<span class="led '+LEVEL_LED[a.level]+' mt-1.5"></span>'+
+        '<span class="min-w-0"><span class="block text-[12.5px] text-frost leading-snug '+(a.ack?'opacity-50':'')+'">'+esc(a.title)+'</span>'+
+        '<span class="block text-[11px] text-beam mt-0.5">'+esc(a.source)+' · '+ago(a.ts)+'</span></span></button>').join('')+
+    '</div>'+
+    '<button data-act="go" data-page="insights" class="w-full px-3.5 py-2.5 text-[12px] text-ice border-t border-line hover:bg-white/4 linkish">Open Smart Insights</button></div>';
+}
+
+/* ===================== COMMAND CENTRE ===================== */
+function pageCommand(){
+  const active = expeditions.filter(e=>e.status==='Active').length;
+  const deployed = personnel.length;
+  const inTransit = cargo.filter(c=>c.status==='In Transit').length;
+  const opAssets = assets.filter(a=>a.status==='Operational').length;
+  const invAlerts = inventory.filter(i=>invStatus(i)!=='Healthy').length;
+  const emg = incidents.filter(i=>i.stage<7).length;
+  const exp = expeditions.find(e=>e.id===state.expedition)||expeditions[0];
+  const ins = buildInsights();
+  const filt = state.alertFilter;
+  const shown = alerts.filter(a=> filt==='All' || a.level===filt);
+
+  return '<div class="p-4 md:p-6 max-w-[1560px] mx-auto">'+
+  pageHead('Command Centre','OPERATIONAL PICTURE · '+dfmt(NOW).toUpperCase()+' · '+tfmt(NOW)+' STATION TIME',
+    btn('Refresh feed','refresh',{icon:'refresh'})+btn('Daily situation report','report-sitrep',{kind:'primary',icon:'file'}))+
+
+  '<div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mb-5">'+
+    kpi('ACTIVE EXPEDITIONS', pad(active), expeditions.filter(e=>e.status==='Planning').length+' in planning','info','compass','go-expeditions')+
+    kpi('PERSONNEL DEPLOYED', fmt(deployed), personnel.filter(p=>p.status==='On Mission').length+' currently on mission','ok','users','go-personnel')+
+    kpi('CARGO IN TRANSIT', pad(inTransit), cargo.filter(c=>c.status==='Delayed').length+' consignments delayed','info','package','go-cargo')+
+    kpi('OPERATIONAL ASSETS', pad(opAssets), assets.length+' in registry · '+assets.filter(a=>a.status==='In Maintenance').length+' in maintenance','ok','truck','go-assets')+
+    kpi('INVENTORY ALERTS', pad(invAlerts), inventory.filter(i=>invStatus(i)==='Critical').length+' below safety threshold','warn','boxes','go-inventory')+
+    kpi('ACTIVE EMERGENCIES', pad(emg), incidents.filter(i=>i.severity==='Critical'&&i.stage<7).length+' critical severity','bad','siren','go-emergency')+
+  '</div>'+
+
+  '<div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">'+
+    '<div class="xl:col-span-2 panel rounded-[3px] p-4">'+
+      sectionHead('Live polar picture', exp.code+' · '+exp.destination,
+        '<div class="flex rounded-[3px] border border-line overflow-hidden">'+
+          ['antarctic','arctic'].map(t=>'<button data-act="theatre" data-t="'+t+'" class="px-2.5 py-1.5 text-[11.5px] linkish '+(state.mapTheatre===t?'bg-glacier/18 text-ice':'text-beam hover:text-frost')+'">'+(t==='antarctic'?'Antarctic':'Arctic')+'</button>').join('')+
+        '</div>'+btn('Expand','go',{icon:'layers',data:{page:'live'}}))+
+      '<div class="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-4">'+
+        '<div class="rounded-[3px] border border-line bg-hull/60 p-1">'+polarMap({w:720,h:450})+'</div>'+
+        '<div class="space-y-3">'+
+          (state.mapSel?markerCard(state.mapSel):infoCard('SELECT A MARKER','Nothing selected',[['Stations',mapEntities.filter(e=>e.kind==='station'&&e.theatre===state.mapTheatre).length],['Vessels',mapEntities.filter(e=>e.kind==='vessel'&&e.theatre===state.mapTheatre).length],['Vehicles',mapEntities.filter(e=>e.kind==='vehicle'&&e.theatre===state.mapTheatre).length],['Field camps',mapEntities.filter(e=>e.kind==='camp'&&e.theatre===state.mapTheatre).length],['Open incidents',incidents.filter(i=>i.stage<7).length]],'','info'))+
+          '<div class="panel-flat rounded-[3px] p-3">'+
+            '<div class="eyebrow mb-2">MAP LAYERS</div>'+
+            [['station','Research stations','#7FD7FF'],['camp','Field camps','#2DD4BF'],['vessel','Vessels','#F0A429'],['vehicle','Vehicles','#9CC4EC'],['facility','Ports &amp; depots','#8AA6CC'],['incident','Incidents','#F0524D']]
+              .map(l=>'<label class="flex items-center gap-2 py-[3px] text-[12px] text-beam hover:text-frost linkish cursor-pointer">'+
+                '<input type="checkbox" data-layer="'+l[0]+'" '+(state.mapLayers[l[0]]!==false?'checked':'')+' class="accent-sky-400 w-3.5 h-3.5"/>'+
+                '<span class="w-2 h-2 rounded-[1px]" style="background:'+l[2]+'"></span>'+l[1]+'</label>').join('')+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+
+    '<div class="panel rounded-[3px] p-4 flex flex-col">'+
+      sectionHead('Active alerts', shown.length+' of '+alerts.length+' shown','')+
+      '<div class="flex gap-1.5 mb-3 flex-wrap">'+
+        ['All','Critical','High','Medium','Information'].map(f=>'<button data-act="alertfilter" data-f="'+f+'" class="px-2.5 py-1 rounded-[3px] text-[11.5px] border linkish '+(filt===f?'border-glacier/50 bg-glacier/15 text-ice':'border-line text-beam hover:text-frost')+'">'+f+'</button>').join('')+
+      '</div>'+
+      '<div class="space-y-2 overflow-y-auto pr-1" style="max-height:520px">'+
+        (shown.length?shown.map(alertRow).join(''):emptyState('No alerts at this level','Lower the filter to see the full feed.'))+
+      '</div>'+
+    '</div>'+
+  '</div>'+
+
+  '<div class="grid grid-cols-1 xl:grid-cols-3 gap-4">'+
+    '<div class="xl:col-span-2 panel rounded-[3px] p-4">'+
+      sectionHead('AI operational insights','Generated from live logistics, consumption and maintenance telemetry', btn('Open copilot','go',{icon:'bot',data:{page:'copilot'}}))+
+      '<div class="grid md:grid-cols-2 gap-3">'+ins.slice(0,4).map(insightCard).join('')+'</div>'+
+    '</div>'+
+    '<div class="panel rounded-[3px] p-4">'+
+      sectionHead('Expedition health', exp.code,'')+
+      '<div class="space-y-2.5 mb-4">'+Object.keys(exp.health).map(k=>healthBar(k.charAt(0).toUpperCase()+k.slice(1), exp.health[k])).join('')+'</div>'+
+      '<div class="grid grid-cols-3 gap-2 text-center">'+
+        [['Personnel',personnel.filter(p=>p.expeditionId===exp.id).length],
+         ['Cargo lines',cargo.filter(c=>c.expeditionId===exp.id).length],
+         ['Assets',assets.filter(a=>a.expeditionId===exp.id).length]]
+        .map(x=>'<div class="panel-flat rounded-[3px] py-2.5"><div class="tick text-[19px] text-frost">'+x[1]+'</div><div class="eyebrow mt-1">'+x[0].toUpperCase()+'</div></div>').join('')+
+      '</div>'+
+      '<div class="mt-4 pt-3 border-t border-line">'+
+        '<div class="eyebrow mb-2">NEXT 72 HOURS</div>'+
+        '<ol class="space-y-2.5">'+
+        [['Tomorrow 06:00','Blizzard hold begins — all field movement suspended','warn'],
+         ['16 Dec 14:00','G-04 generator service window (30 h remaining)','warn'],
+         ['17 Dec 09:00','ORV Sagar Nidhi enters Prydz Bay approach','info'],
+         ['17 Dec 16:00','Cargo discharge: fuel and medical pallets first','ok']]
+        .map(e=>'<li class="flex gap-2.5"><span class="led '+({warn:'led-warn',info:'led-info',ok:'led-ok'}[e[2]])+' mt-[5px]"></span>'+
+          '<span><span class="block tick text-[11px] text-beam">'+e[0]+'</span><span class="block text-[12.5px] text-frost leading-snug">'+esc(e[1])+'</span></span></li>').join('')+
+        '</ol></div>'+
+    '</div>'+
+  '</div></div>';
+}
+function alertRow(a){
+  return '<div class="group relative panel-flat rounded-[3px] p-3 hover:border-line2 linkish '+(a.ack?'opacity-55':'')+'">'+
+    '<div class="flex items-start gap-2.5">'+
+      '<span class="led '+LEVEL_LED[a.level]+' mt-[6px] '+(a.level==='Critical'&&!a.ack?'blip':'')+'"></span>'+
+      '<div class="min-w-0 flex-1">'+
+        '<div class="flex items-center gap-2 flex-wrap">'+chip(a.level, LEVEL_TONE[a.level])+'<span class="tick text-[10.5px] text-beam">'+esc(a.source)+' · '+ago(a.ts)+'</span></div>'+
+        '<p class="text-[13px] text-frost mt-1.5 leading-snug">'+esc(a.title)+'</p>'+
+        '<p class="text-[11.5px] text-beam mt-1 leading-snug">'+esc(a.detail)+'</p>'+
+        '<div class="flex gap-1.5 mt-2">'+
+          '<button data-act="go" data-page="'+(a.link?a.link.page:'command')+'" data-id="'+esc((a.link&&a.link.id)||'')+'" class="text-[11.5px] text-ice hover:underline">Open</button>'+
+          '<span class="text-beam/40">·</span>'+
+          '<button data-act="ack" data-id="'+esc(a.id)+'" class="text-[11.5px] text-beam hover:text-frost">'+(a.ack?'Acknowledged':'Acknowledge')+'</button>'+
+        '</div>'+
+      '</div></div></div>';
+}
+function insightCard(i){
+  const tone={high:'bad',med:'warn',low:'info'}[i.sev];
+  const col={high:'#F0524D',med:'#F0A429',low:'#7FD7FF'}[i.sev];
+  return '<div class="relative panel-flat rounded-[3px] p-3.5">'+
+    '<span class="absolute left-0 top-0 h-full w-[2px]" style="background:'+col+';opacity:.75"></span>'+
+    '<div class="flex items-start gap-2.5">'+
+      '<span class="shrink-0 mt-[1px]" style="color:'+col+'">'+ic(i.icon,'w-4 h-4')+'</span>'+
+      '<div class="min-w-0">'+
+        '<p class="text-[13.5px] text-frost leading-snug font-500">'+esc(i.title)+'</p>'+
+        '<p class="text-[12px] text-beam mt-1.5 leading-relaxed">'+esc(i.body)+'</p>'+
+        '<div class="flex items-center gap-3 mt-2.5">'+
+          '<button data-act="go" data-page="'+i.go.page+'" class="text-[11.5px] text-ice hover:underline">'+esc(i.action)+'</button>'+
+          '<span class="tick text-[10.5px] text-beam">confidence '+Math.round(i.conf*100)+'%</span>'+
+        '</div></div></div></div>';
+}
+
+/* ===================== EXPEDITIONS ===================== */
+function pageExpeditions(){
+  return '<div class="p-4 md:p-6 max-w-[1560px] mx-auto">'+
+  pageHead('Expeditions','PROGRAMME PORTFOLIO · NCPOR',
+    btn('New expedition','exp-new',{kind:'primary',icon:'plus'}))+
+  '<div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">'+
+  expeditions.map(e=>{
+    const people=personnel.filter(p=>p.expeditionId===e.id).length;
+    const cg=cargo.filter(c=>c.expeditionId===e.id).length;
+    const as=assets.filter(a=>a.expeditionId===e.id).length;
+    const avg=Math.round(Object.keys(e.health).reduce((s,k)=>s+e.health[k],0)/5);
+    const prog = clamp(Math.round((NOW-e.start)/(e.end-e.start)*100),0,100);
+    return '<div class="panel rounded-[3px] p-4 hover:border-line2 linkish flex flex-col '+(e.status==='Archived'?'opacity-70':'')+'">'+
+      '<div class="flex items-start justify-between gap-3">'+
+        '<div><div class="eyebrow">'+esc(e.code)+' · '+esc(e.region.toUpperCase())+'</div>'+
+        '<h3 class="cond text-[18px] font-600 text-frost leading-tight mt-1">'+esc(e.name)+'</h3></div>'+
+        statusChip(e.status)+'</div>'+
+      '<p class="text-[12px] text-beam mt-2 leading-relaxed">'+esc(e.objective)+'</p>'+
+      '<dl class="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-3 text-[12px]">'+
+        '<div class="flex justify-between"><dt class="text-beam">Destination</dt></div><div></div>'+
+        '<div class="col-span-2 text-frost">'+esc(e.destination)+'</div>'+
+        '<div class="col-span-2 flex justify-between border-t border-line pt-2 mt-1"><dt class="text-beam">Window</dt><dd class="tick text-frost">'+dfmt(e.start)+' → '+dfmt(e.end)+'</dd></div>'+
+        '<div class="col-span-2 flex justify-between"><dt class="text-beam">Leader</dt><dd class="text-frost">'+esc(e.lead)+'</dd></div>'+
+      '</dl>'+
+      '<div class="mt-3"><div class="flex justify-between text-[11px] text-beam mb-1"><span>Timeline</span><span class="tick">'+prog+'%</span></div>'+
+      '<div class="h-[5px] bg-white/6 rounded-sm overflow-hidden"><div class="h-full bg-glacier/70" style="width:'+prog+'%"></div></div></div>'+
+      '<div class="grid grid-cols-4 gap-2 mt-3.5 text-center">'+
+        [['PEOPLE',people],['CARGO',cg],['ASSETS',as],['HEALTH',avg+'%']].map(x=>
+          '<div class="panel-flat rounded-[3px] py-1.5"><div class="tick text-[14px] text-frost">'+x[1]+'</div><div class="eyebrow mt-0.5" style="font-size:9px">'+x[0]+'</div></div>').join('')+
+      '</div>'+
+      '<div class="flex gap-2 mt-3.5 pt-3 border-t border-line">'+
+        btn('Open','exp-open',{kind:'primary',icon:'eye',data:{id:e.id},cls:'flex-1 justify-center'})+
+        btn('Edit','exp-edit',{icon:'edit',data:{id:e.id}})+
+        (e.status!=='Archived'?btn('Archive','exp-archive',{icon:'archive',data:{id:e.id}}):btn('Restore','exp-restore',{icon:'refresh',data:{id:e.id}}))+
+      '</div></div>';
+  }).join('')+'</div></div>';
+}
+
+function expForm(e){
+  e=e||{};
+  const f=(label,name,val,type,ph)=>'<label class="block"><span class="eyebrow block mb-1.5">'+label+'</span>'+
+    '<input name="'+name+'" type="'+(type||'text')+'" value="'+esc(val||'')+'" placeholder="'+esc(ph||'')+'" class="w-full bg-deck border border-line rounded px-3 py-2 text-[13px] focus:border-glacier/60 outline-none linkish"/></label>';
+  const iso=ts=> ts? new Date(ts).toISOString().slice(0,10):'';
+  return '<form data-form="expedition" data-id="'+esc(e.id||'')+'">'+
+    modalHead(e.id?'Edit expedition':'New expedition', e.id?e.code:'Define the programme, window and command structure')+
+    '<div class="p-5 grid md:grid-cols-2 gap-4">'+
+      f('EXPEDITION NAME','name',e.name,'text','Indian Antarctic Expedition 2028')+
+      f('CODE','code',e.code,'text','ISEA-45')+
+      f('DESTINATION','destination',e.destination,'text','Maitri Station, Dronning Maud Land')+
+      '<label class="block"><span class="eyebrow block mb-1.5">REGION</span>'+
+        '<select name="region" class="w-full bg-deck border border-line rounded px-3 py-2 text-[13px]">'+
+        ['Antarctic','Arctic','Southern Ocean'].map(r=>'<option '+(e.region===r?'selected':'')+'>'+r+'</option>').join('')+'</select></label>'+
+      f('START DATE','start',iso(e.start),'date')+
+      f('END DATE','end',iso(e.end),'date')+
+      f('EXPEDITION LEADER','lead',e.lead,'text','Dr. Ananya Deshpande')+
+      '<label class="block"><span class="eyebrow block mb-1.5">STATUS</span>'+
+        '<select name="status" class="w-full bg-deck border border-line rounded px-3 py-2 text-[13px]">'+
+        ['Planning','Active','Archived'].map(s=>'<option '+(e.status===s?'selected':'')+'>'+s+'</option>').join('')+'</select></label>'+
+      '<label class="block md:col-span-2"><span class="eyebrow block mb-1.5">OBJECTIVE</span>'+
+        '<textarea name="objective" rows="3" class="w-full bg-deck border border-line rounded px-3 py-2 text-[13px] focus:border-glacier/60 outline-none linkish" placeholder="Primary scientific and logistic objectives">'+esc(e.objective||'')+'</textarea></label>'+
+    '</div>'+
+    '<div class="flex justify-end gap-2 px-5 py-4 border-t border-line">'+
+      btn('Cancel','close-modal')+btn(e.id?'Save changes':'Create expedition','save-expedition',{kind:'primary',icon:'check'})+
+    '</div></form>';
+}
+
+/* ---------- expedition detail ---------- */
+const EXP_TABS=[['overview','Overview'],['personnel','Personnel'],['cargo','Cargo'],['inventory','Inventory'],['assets','Assets'],['missions','Missions'],['route','Route'],['alerts','Alerts'],['activity','Activity']];
+function pageExpedition(){
+  const e = expeditions.find(x=>x.id===state.params.id) || expeditions[0];
+  const tab = state.expTab;
+  return '<div class="p-4 md:p-6 max-w-[1560px] mx-auto">'+
+  '<button data-act="go" data-page="expeditions" class="flex items-center gap-1.5 text-[12px] text-beam hover:text-frost linkish mb-3">'+ic('chev','w-3.5 h-3.5 rotate-180')+'All expeditions</button>'+
+  pageHead(e.name, e.code+' · '+e.region.toUpperCase()+' · '+e.status.toUpperCase(),
+    btn('Edit','exp-edit',{icon:'edit',data:{id:e.id}})+btn('Assign resources','exp-assign',{kind:'primary',icon:'plus',data:{id:e.id}}))+
+  '<div class="grid md:grid-cols-4 gap-3 mb-5">'+
+    [['WINDOW', dfmt(e.start)+' → '+dfmt(e.end)],['DESTINATION', e.destination],['LEADER', e.lead],['BASE', e.base]]
+    .map(x=>'<div class="panel rounded-[3px] p-3"><div class="eyebrow">'+x[0]+'</div><div class="text-[13px] text-frost mt-1.5 leading-snug">'+esc(x[1])+'</div></div>').join('')+
+  '</div>'+
+  '<div class="flex gap-1 border-b border-line mb-4 overflow-x-auto scroll-x">'+
+    EXP_TABS.map(t=>'<button data-act="exptab" data-t="'+t[0]+'" class="px-3.5 py-2 text-[12.5px] whitespace-nowrap linkish border-b-2 -mb-px '+
+      (tab===t[0]?'border-ice text-frost':'border-transparent text-beam hover:text-frost')+'">'+t[1]+'</button>').join('')+
+  '</div>'+
+  expTabBody(e,tab)+'</div>';
+}
+function expTabBody(e,tab){
+  if(tab==='overview'){
+    const avg=Math.round(Object.keys(e.health).reduce((s,k)=>s+e.health[k],0)/5);
+    const ea = alerts.filter(a=>a.level!=='Information').slice(0,4);
+    return '<div class="grid xl:grid-cols-3 gap-4">'+
+      '<div class="panel rounded-[3px] p-4">'+sectionHead('Expedition health','Composite readiness index','')+
+        '<div class="flex items-center gap-4 mb-4">'+donut(avg,'READY', avg>=85?'#3FCF8E':avg>=70?'#7FD7FF':'#F0A429')+
+        '<p class="text-[12px] text-beam leading-relaxed">Inventory is the weakest dimension at '+e.health.inventory+'. Fuel cover and medical consumables at the base are the two lines pulling it down.</p></div>'+
+        '<div class="space-y-2.5">'+Object.keys(e.health).map(k=>healthBar(k.charAt(0).toUpperCase()+k.slice(1),e.health[k])).join('')+'</div></div>'+
+      '<div class="panel rounded-[3px] p-4 xl:col-span-2">'+sectionHead('Objective &amp; scope','')+
+        '<p class="text-[13px] text-frost leading-relaxed mb-4">'+esc(e.objective)+'</p>'+
+        '<div class="grid sm:grid-cols-4 gap-3 mb-4">'+
+        [['Personnel',personnel.filter(p=>p.expeditionId===e.id).length,'users'],
+         ['Cargo lines',cargo.filter(c=>c.expeditionId===e.id).length,'package'],
+         ['Assets',assets.filter(a=>a.expeditionId===e.id).length,'truck'],
+         ['Missions',missions.filter(m=>m.expeditionId===e.id).length,'compass']]
+        .map(x=>'<div class="panel-flat rounded-[3px] p-3"><div class="flex items-center gap-2 text-beam">'+ic(x[2],'w-3.5 h-3.5')+'<span class="eyebrow">'+x[0].toUpperCase()+'</span></div>'+
+          '<div class="tick text-[24px] text-frost mt-1.5">'+x[1]+'</div></div>').join('')+'</div>'+
+        '<div class="eyebrow mb-2">OPEN RISKS</div>'+
+        '<div class="space-y-2">'+ea.map(a=>'<div class="flex items-start gap-2.5 text-[12.5px]"><span class="led '+LEVEL_LED[a.level]+' mt-[6px]"></span><span class="text-frost">'+esc(a.title)+'</span></div>').join('')+'</div>'+
+      '</div></div>';
+  }
+  if(tab==='personnel'){
+    const list=personnel.filter(p=>p.expeditionId===e.id);
+    return dataTable(['ID','Name','Role','Team','Location','Status','Last check-in'],
+      list.slice(0,40).map(p=>['<span class="tick text-beam">'+p.id+'</span>', '<button data-act="person" data-id="'+p.id+'" class="text-frost hover:text-ice linkish">'+esc(p.name)+'</button>',
+        esc(p.role), esc(p.team), esc(p.location), statusChip(isOverdue(p)?'Critical':p.status), '<span class="tick text-beam">'+tfmt(p.lastCheckIn)+'</span>']),
+      list.length+' assigned · showing first 40');
+  }
+  if(tab==='cargo'){
+    const list=cargo.filter(c=>c.expeditionId===e.id);
+    return dataTable(['Cargo ID','Item','Category','Weight','Location','Status','ETA'],
+      list.map(c=>['<button data-act="cargo-open" data-id="'+c.id+'" class="tick text-ice hover:underline">'+c.id+'</button>', esc(c.item), esc(c.category),
+        '<span class="tick">'+fmt(c.weight)+' kg</span>', esc(c.location), statusChip(c.status), '<span class="tick text-beam">'+dfmt(c.eta)+'</span>']),
+      list.length+' consignments · '+fmt(list.reduce((s,c)=>s+c.weight,0))+' kg total');
+  }
+  if(tab==='inventory'){
+    const list=inventory.filter(i=>i.location===e.base || i.location.indexOf('Camp')>=0);
+    return dataTable(['Item','Category','Stock','Threshold','Days cover','Status'],
+      list.map(i=>[esc(i.name), esc(i.category), '<span class="tick">'+fmt(Math.round(i.qty))+' '+i.unit+'</span>',
+        '<span class="tick text-beam">'+fmt(i.min)+'</span>','<span class="tick">'+invDays(i).toFixed(1)+'</span>', statusChip(invStatus(i))]),
+      list.length+' stock lines held for this expedition');
+  }
+  if(tab==='assets'){
+    const list=assets.filter(a=>a.expeditionId===e.id);
+    return dataTable(['Asset ID','Name','Type','Location','Hours','Condition','Status'],
+      list.map(a=>['<button data-act="asset-open" data-id="'+a.id+'" class="tick text-ice hover:underline">'+a.id+'</button>', esc(a.name), esc(a.type), esc(a.location),
+        '<span class="tick">'+fmt(a.hours)+' / '+fmt(a.threshold)+'</span>', statusChip(a.condition), statusChip(a.status)]),
+      list.length+' assets allocated');
+  }
+  if(tab==='missions'){
+    const list=missions.filter(m=>m.expeditionId===e.id);
+    return '<div class="grid md:grid-cols-2 xl:grid-cols-3 gap-3">'+(list.length?list.map(m=>
+      '<div class="panel rounded-[3px] p-3.5">'+
+      '<div class="flex items-start justify-between gap-2"><div><div class="eyebrow">'+m.id+' · '+esc(m.discipline.toUpperCase())+'</div>'+
+      '<h4 class="cond text-[16px] text-frost mt-1 leading-tight">'+esc(m.title)+'</h4></div>'+statusChip(m.state)+'</div>'+
+      '<div class="text-[12px] text-beam mt-2">'+esc(m.site)+' · due '+dfmt(m.due)+'</div>'+
+      '<div class="mt-2.5 h-[5px] bg-white/6 rounded-sm overflow-hidden"><div class="h-full '+(m.state==='Blocked'?'bg-crimson/70':'bg-aurora/70')+'" style="width:'+m.progress+'%"></div></div>'+
+      '<div class="flex justify-between text-[11px] text-beam mt-1.5"><span>'+esc(m.leadRole)+'</span><span class="tick">'+m.progress+'%</span></div>'+
+      '</div>').join(''):emptyState('No missions defined yet','Use Assign resources to add the first mission.'))+'</div>';
+  }
+  if(tab==='route'){
+    return '<div class="grid xl:grid-cols-[1fr_380px] gap-4">'+
+      '<div class="panel rounded-[3px] p-4">'+sectionHead('Planned route','Sequential legs with clearance state','')+
+      '<ol class="relative pl-6">'+e.route.map((r,i)=>
+        '<li class="relative pb-5 last:pb-0">'+
+        (i<e.route.length-1?'<span class="absolute left-[-15px] top-4 bottom-0 w-px bg-line"></span>':'')+
+        '<span class="absolute left-[-19px] top-1 w-2.5 h-2.5 rounded-full border-2 '+(r.state==='Cleared'?'bg-moss border-moss':'bg-hull border-line2')+'"></span>'+
+        '<div class="flex items-center justify-between gap-3 flex-wrap"><span class="text-[13.5px] text-frost">'+pad(r.seq)+' · '+esc(r.place)+'</span>'+statusChip(r.state)+'</div>'+
+        '<div class="tick text-[11.5px] text-beam mt-0.5">ETA '+dfmt(r.eta)+' · '+(PLACES[r.place]?Math.abs(PLACES[r.place].lat).toFixed(2)+'°'+(PLACES[r.place].lat<0?'S':'N'):'—')+'</div>'+
+        '</li>').join('')+'</ol></div>'+
+      '<div class="panel rounded-[3px] p-3"><div class="rounded-[3px] border border-line bg-hull/60 p-1">'+polarMap({w:520,h:420})+'</div></div>'+
+    '</div>';
+  }
+  if(tab==='alerts'){
+    return '<div class="grid md:grid-cols-2 gap-3">'+alerts.slice(0,10).map(alertRow).join('')+'</div>';
+  }
+  const acts=[
+    ['Cargo CGO-1024 placed on weather hold at Cape Town','Cargo Control', NOW-2*HOUR],
+    ['Response team RT-ALPHA dispatched to Field Camp Bravo','Emergency Centre', NOW-44*60000],
+    ['Fuel reading logged at Maitri: 8 500 L','Station Engineering', NOW-5*HOUR],
+    ['Mission MSN-104 marked in progress','Science Coordination', NOW-8*HOUR],
+    ['12 personnel checked in at Maitri Station','Personnel Tracking', NOW-9*HOUR],
+    ['Generator G-04 crossed 900 operating hours','Predictive Maintenance', NOW-26*HOUR],
+    ['Blizzard warning issued for Dronning Maud Land','Meteorology', NOW-31*HOUR],
+    ['ORV Sagar Nidhi cleared 63°S waypoint','Navigation', NOW-40*HOUR]
+  ];
+  return '<div class="panel rounded-[3px] p-4"><ol class="relative pl-5">'+acts.map((a,i)=>
+    '<li class="relative pb-4 last:pb-0">'+(i<acts.length-1?'<span class="absolute left-[-13px] top-3.5 bottom-0 w-px bg-line"></span>':'')+
+    '<span class="absolute left-[-16px] top-1.5 w-2 h-2 rounded-full bg-glacier/70"></span>'+
+    '<div class="text-[13px] text-frost leading-snug">'+esc(a[0])+'</div>'+
+    '<div class="tick text-[11px] text-beam mt-0.5">'+esc(a[1])+' · '+dtfmt(a[2])+'</div></li>').join('')+'</ol></div>';
+}
+
+function dataTable(cols, rows, caption, opts){
+  opts=opts||{};
+  return '<div class="panel rounded-[3px] overflow-hidden">'+
+   (caption?'<div class="px-4 py-2.5 border-b border-line text-[11.5px] text-beam">'+esc(caption)+'</div>':'')+
+   '<div class="scroll-x"><table class="w-full min-w-[720px]">'+
+   '<thead><tr class="border-b border-line">'+cols.map(c=>'<th class="px-4 py-2.5 whitespace-nowrap">'+esc(c).toUpperCase()+'</th>').join('')+'</tr></thead>'+
+   '<tbody>'+(rows.length?rows.map(r=>'<tr class="striped row-hover border-b border-[#131F33] linkish">'+r.map(c=>'<td class="px-4 py-2.5 text-[12.5px] align-middle whitespace-nowrap">'+c+'</td>').join('')+'</tr>').join('')
+     :'<tr><td colspan="'+cols.length+'">'+emptyState('Nothing matches these filters','Clear a filter or widen the search.')+'</td></tr>')+
+   '</tbody></table></div></div>';
+}
+
+/* ===================== LIVE OPERATIONS ===================== */
+function pageLive(){
+  const th=state.mapTheatre;
+  const ents=mapEntities.filter(e=>e.theatre===th);
+  return '<div class="p-4 md:p-6 max-w-[1560px] mx-auto">'+
+  pageHead('Live Operations','REAL-TIME TRACKING · '+(th==='antarctic'?'ANTARCTIC THEATRE':'ARCTIC THEATRE'),
+    '<div class="flex rounded-[3px] border border-line overflow-hidden">'+
+      ['antarctic','arctic'].map(t=>'<button data-act="theatre" data-t="'+t+'" class="px-3 py-1.5 text-[12px] linkish '+(th===t?'bg-glacier/18 text-ice':'text-beam hover:text-frost')+'">'+(t==='antarctic'?'Antarctic':'Arctic')+'</button>').join('')+
+    '</div>'+btn('Refresh positions','refresh',{icon:'refresh'}))+
+  '<div class="grid xl:grid-cols-[1fr_330px] gap-4">'+
+    '<div class="panel rounded-[3px] p-3">'+
+      '<div class="rounded-[3px] border border-line bg-hull/60 p-1">'+polarMap({w:860,h:560})+'</div>'+
+      '<div class="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 px-1 text-[11.5px] text-beam">'+
+        [['Station','#7FD7FF','rect'],['Field camp','#2DD4BF','circle'],['Vessel','#F0A429','tri'],['Vehicle','#9CC4EC','dia'],['Port / depot','#8AA6CC','ring'],['Incident','#F0524D','circle']]
+        .map(l=>'<span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5" style="background:'+l[1]+';border-radius:'+(l[2]==='circle'?'99px':'1px')+'"></span>'+l[0]+'</span>').join('')+
+        '<span class="ml-auto tick">Positions updated '+tfmt(NOW-4*60000)+'</span>'+
+      '</div>'+
+    '</div>'+
+    '<div class="space-y-3">'+
+      (state.mapSel?markerCard(state.mapSel):'')+
+      '<div class="panel rounded-[3px] p-3">'+
+        '<div class="eyebrow mb-2">TRACKED ENTITIES · '+ents.length+'</div>'+
+        '<div class="space-y-1 max-h-[430px] overflow-y-auto pr-1">'+
+        ents.map(e=>'<button data-act="marker" data-id="'+esc(e.id)+'" class="w-full flex items-center gap-2.5 px-2 py-2 rounded-[3px] text-left linkish '+(state.mapSel===e.id?'bg-glacier/12 border border-glacier/35':'border border-transparent hover:bg-white/4')+'">'+
+          '<span class="w-2 h-2 rounded-[1px] shrink-0" style="background:'+({station:'#7FD7FF',camp:'#2DD4BF',vessel:'#F0A429',vehicle:'#9CC4EC',facility:'#8AA6CC'}[e.kind])+'"></span>'+
+          '<span class="min-w-0"><span class="block text-[12.5px] text-frost truncate">'+esc(e.name)+'</span>'+
+          '<span class="block tick text-[10.5px] text-beam">'+e.kind.toUpperCase()+' · '+Math.abs(e.lat).toFixed(2)+'°'+(e.lat<0?'S':'N')+'</span></span></button>').join('')+
+        '</div></div>'+
+      '<div class="panel rounded-[3px] p-3">'+
+        '<div class="eyebrow mb-2">CONDITIONS</div>'+
+        '<div class="grid grid-cols-2 gap-2">'+
+        [['Air temp','−28.4 °C'],['Wind','42 kn ESE'],['Visibility','1.8 km'],['Sea ice','8/10 cover'],['Wind chill','−47 °C'],['Sunlight','24 h daylight']]
+        .map(x=>'<div class="panel-flat rounded-[3px] p-2.5"><div class="eyebrow" style="font-size:9.5px">'+x[0].toUpperCase()+'</div><div class="tick text-[14px] text-frost mt-1">'+x[1]+'</div></div>').join('')+
+        '</div>'+
+        '<div class="mt-3 p-2.5 rounded-[3px] border border-amber1/30 bg-amber1/8 text-[12px] text-amber1 flex gap-2">'+ic('alert','w-4 h-4 shrink-0 mt-[1px]')+
+        '<span class="text-frost">Blizzard warning from 06:00 tomorrow. Field movement should be suspended for roughly 16 hours.</span></div>'+
+      '</div>'+
+    '</div></div></div>';
+}
+
+/* ===================== CARGO ===================== */
+function pageCargo(){
+  const f=state.cargo;
+  let list=cargo.filter(c=>
+    (f.status==='All'||c.status===f.status) &&
+    (f.prio==='All'||c.priority===f.prio) &&
+    (f.exp==='All'||expName(c.expeditionId)===f.exp) &&
+    (!f.q || (c.id+' '+c.item+' '+c.category+' '+c.location+' '+c.destination).toLowerCase().indexOf(f.q.toLowerCase())>=0));
+  const totW = list.reduce((s,c)=>s+c.weight,0);
+  return '<div class="p-4 md:p-6 max-w-[1560px] mx-auto">'+
+  pageHead('Cargo Control','CONSIGNMENT TRACKING · WAREHOUSE TO STATION',
+    btn('Add consignment','cargo-new',{kind:'primary',icon:'plus'}))+
+  '<div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2.5 mb-4">'+
+    ['Planned','Packed','Dispatched','In Transit','Delayed','Arrived','Verified','Stored'].map(s=>{
+      const n=cargo.filter(c=>c.status===s).length;
+      const tone=STATUS_TONE[s];
+      const col={ok:'#3FCF8E',warn:'#F0A429',bad:'#F0524D',info:'#38BDF8',idle:'#54698C'}[tone];
+      return '<button data-act="cargo-status" data-s="'+s+'" class="panel rounded-[3px] p-2.5 text-left hover:border-line2 linkish '+(f.status===s?'border-glacier/50':'')+'">'+
+        '<div class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full" style="background:'+col+'"></span><span class="eyebrow" style="font-size:9.5px">'+s.toUpperCase()+'</span></div>'+
+        '<div class="tick text-[20px] text-frost mt-1">'+pad(n)+'</div></button>';
+    }).join('')+
+  '</div>'+
+  '<div class="flex flex-wrap gap-2 mb-3 items-center">'+
+    searchBox('cargo.q', f.q, 'Search cargo ID, item, location…')+
+    selectBox('cargo.status', f.status, ['All','Planned','Packed','Dispatched','In Transit','Delayed','Arrived','Verified','Stored'])+
+    selectBox('cargo.prio', f.prio, ['All','Critical','High','Normal','Low'])+
+    selectBox('cargo.exp', f.exp, ['All'].concat(expeditions.map(e=>e.code)))+
+    (f.q||f.status!=='All'||f.prio!=='All'||f.exp!=='All'?btn('Clear filters','cargo-clear',{icon:'x'}):'')+
+    '<span class="ml-auto text-[12px] text-beam tick">'+list.length+' lines · '+fmt(totW)+' kg</span>'+
+  '</div>'+
+  dataTable(['Cargo ID','Item','Category','Weight','Current location','Destination','Expedition','Status','Priority','ETA'],
+    list.slice(0,60).map(c=>[
+      '<button data-act="cargo-open" data-id="'+c.id+'" class="tick text-ice hover:underline">'+c.id+'</button>',
+      '<span class="text-frost">'+esc(c.item)+'</span>', esc(c.category),
+      '<span class="tick">'+fmt(c.weight)+' kg</span>', esc(c.location), esc(c.destination),
+      '<span class="tick text-beam">'+expName(c.expeditionId)+'</span>', statusChip(c.status),
+      chip(c.priority, c.priority==='Critical'?'bad':c.priority==='High'?'warn':'idle'),
+      '<span class="tick text-beam">'+dfmt(c.eta)+'</span>'])
+    , list.length>60?'Showing 60 of '+list.length+' consignments':null)+
+  '</div>';
+}
+function qrSvg(seed){
+  const r=mulberry32(seed.split('').reduce((a,c)=>a+c.charCodeAt(0),7));
+  const N=21, cell=6, s=N*cell;
+  let g='<rect width="'+s+'" height="'+s+'" fill="#E8F1FB"/>';
+  function finder(ox,oy){
+    g+='<rect x="'+ox*cell+'" y="'+oy*cell+'" width="'+7*cell+'" height="'+7*cell+'" fill="#050A14"/>'+
+       '<rect x="'+(ox+1)*cell+'" y="'+(oy+1)*cell+'" width="'+5*cell+'" height="'+5*cell+'" fill="#E8F1FB"/>'+
+       '<rect x="'+(ox+2)*cell+'" y="'+(oy+2)*cell+'" width="'+3*cell+'" height="'+3*cell+'" fill="#050A14"/>';
+  }
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const inF = (x<8&&y<8)||(x>N-9&&y<8)||(x<8&&y>N-9);
+    if(inF) continue;
+    if(r()>0.52) g+='<rect x="'+x*cell+'" y="'+y*cell+'" width="'+cell+'" height="'+cell+'" fill="#050A14"/>';
+  }
+  finder(0,0); finder(N-7,0); finder(0,N-7);
+  return '<svg viewBox="0 0 '+s+' '+s+'" class="w-[126px] h-[126px] rounded-[2px]">'+g+'</svg>';
+}
+function cargoModal(id){
+  const c=cargo.find(x=>x.id===id); if(!c) return;
+  const hist=c.history;
+  openModal(modalHead(c.id, c.item+' · '+expName(c.expeditionId))+
+   '<div class="p-5 grid md:grid-cols-[1fr_260px] gap-5">'+
+    '<div>'+
+      '<div class="grid grid-cols-2 gap-x-5 gap-y-2.5 mb-5">'+
+      [['Category',c.category],['Weight',fmt(c.weight)+' kg'],['Units',c.unitsCount],['Priority',c.priority],
+       ['Origin',c.origin],['Destination',c.destination],['Current location',c.location],['Expected arrival',dfmt(c.eta)],
+       ['Handler',c.handler],['Temperature',c.temp!=null?c.temp+' °C (monitored)':'Not temperature controlled']]
+      .map(r=>'<div class="flex justify-between gap-3 text-[12.5px] border-b border-[#131F33] pb-1.5"><span class="text-beam">'+esc(r[0])+'</span><span class="tick text-frost text-right">'+esc(r[1])+'</span></div>').join('')+
+      '</div>'+
+      '<div class="eyebrow mb-3">MOVEMENT HISTORY</div>'+
+      '<ol class="relative pl-6">'+hist.map((h,i)=>
+        '<li class="relative pb-5 last:pb-0">'+
+        (i<hist.length-1?'<span class="absolute left-[-15px] top-4 bottom-0 w-px '+(h.done?'bg-aurora/45':'bg-line')+'"></span>':'')+
+        '<span class="absolute left-[-19px] top-1 w-2.5 h-2.5 rounded-full border-2 '+(h.done?'bg-aurora border-aurora':'bg-hull border-line2')+'"></span>'+
+        '<div class="flex items-center gap-2 flex-wrap"><span class="text-[13px] '+(h.done?'text-frost':'text-beam')+'">'+esc(h.stage)+'</span>'+
+        (h.done?'<span class="tick text-[11px] text-beam">'+dtfmt(h.ts)+'</span>':chip('Pending','idle'))+'</div>'+
+        (h.note?'<div class="text-[11.5px] text-beam mt-0.5">'+esc(h.note)+'</div>':'')+'</li>').join('')+'</ol>'+
+    '</div>'+
+    '<div class="space-y-3">'+
+      '<div class="panel-flat rounded-[3px] p-3 text-center">'+
+        '<div class="eyebrow mb-2">CONSIGNMENT TAG</div>'+
+        '<div class="inline-block p-2 bg-frost rounded-[3px]">'+qrSvg(c.id)+'</div>'+
+        '<div class="tick text-[11px] text-beam mt-2">'+esc(c.id)+'</div>'+
+        '<div class="mt-2">'+btn('Generate QR','cargo-qr',{icon:'qr',data:{id:c.id},cls:'w-full justify-center'})+'</div>'+
+        '<p class="text-[10.5px] text-beam/80 mt-2 leading-snug">Scanned at every handover point to update the chain automatically.</p>'+
+      '</div>'+
+      '<div class="panel-flat rounded-[3px] p-3">'+
+        '<div class="eyebrow mb-2">STATUS</div>'+
+        '<div class="mb-2.5">'+statusChip(c.status)+'</div>'+
+        '<select data-cargo-status="'+c.id+'" class="w-full bg-deck border border-line rounded px-2.5 py-2 text-[12.5px] mb-2">'+
+        ['Planned','Packed','Dispatched','In Transit','Delayed','Arrived','Verified','Stored'].map(s=>'<option '+(c.status===s?'selected':'')+'>'+s+'</option>').join('')+'</select>'+
+        btn('Advance to next stage','cargo-advance',{kind:'primary',icon:'arrow',data:{id:c.id},cls:'w-full justify-center'})+
+      '</div>'+
+    '</div></div>'+
+   '<div class="flex justify-end gap-2 px-5 py-4 border-t border-line">'+btn('Close','close-modal')+'</div>','max-w-4xl');
+}
+
+/* ===================== INVENTORY ===================== */
+const INV_CATS=['All','Fuel','Food','Medical','Scientific Equipment','Batteries','Spare Parts','Emergency Supplies'];
+function pageInventory(){
+  const f=state.inv;
+  let list=inventory.filter(i=>
+    (f.cat==='All'||i.category===f.cat) &&
+    (f.status==='All'||invStatus(i)===f.status) &&
+    (!f.q||(i.name+' '+i.location+' '+i.category).toLowerCase().indexOf(f.q.toLowerCase())>=0));
+  const crit=inventory.filter(i=>invStatus(i)==='Critical');
+  const focus = crit[0] || inventory[0];
+  return '<div class="p-4 md:p-6 max-w-[1560px] mx-auto">'+
+  pageHead('Inventory &amp; Consumption','STOCK HOLDINGS · PREDICTIVE DEPLETION',
+    btn('Record consumption','inv-consume',{icon:'edit'})+btn('Raise resupply request','inv-resupply',{kind:'primary',icon:'package'}))+
+
+  '<div class="grid xl:grid-cols-3 gap-4 mb-5">'+
+    '<div class="xl:col-span-2 panel rounded-[3px] p-4">'+
+      sectionHead('Depletion forecast — '+focus.name, focus.location+' · 21 days observed, 14 days projected','')+
+      (function(){
+        const obs=focus.history.map(h=>h.q);
+        const proj=[]; let q=focus.qty;
+        for(let k=0;k<14;k++){ q-=focus.daily; proj.push(Math.max(0,Math.round(q))); }
+        const padObs = obs.concat(new Array(14).fill(null)).map(v=>v==null?null:v);
+        const full = obs.concat(proj);
+        const projSeries = new Array(obs.length-1).fill(null).concat([obs[obs.length-1]]).concat(proj);
+        const labels = full.map((_,i)=> i%6===0 ? (i<obs.length? 'D−'+(obs.length-1-i) : 'D+'+(i-obs.length+1)) : '');
+        return lineChart([
+          {data:full.map((v,i)=> i<obs.length? v : null).map(v=>v==null?obs[obs.length-1]:v), color:'#38BDF8', fill:true},
+          {data:projSeries.map(v=>v==null?obs[obs.length-1]:v), color:'#F0A429', dash:true}
+        ], {h:210, threshold:focus.min, thresholdLabel:'safety floor '+fmt(focus.min)+' '+focus.unit, labels:labels});
+      })()+
+      '<div class="grid sm:grid-cols-4 gap-3 mt-4">'+
+      [['CURRENT STOCK', fmt(Math.round(focus.qty))+' '+focus.unit,'ice'],
+       ['DAILY CONSUMPTION', fmt(focus.daily)+' '+focus.unit,'ice'],
+       ['DAYS REMAINING', invDays(focus).toFixed(1),'crimson'],
+       ['HITS SAFETY FLOOR IN', Math.max(0,((focus.qty-focus.min)/focus.daily)).toFixed(0)+' days','amber1']]
+      .map(x=>'<div class="panel-flat rounded-[3px] p-3"><div class="eyebrow">'+x[0]+'</div><div class="tick text-[20px] mt-1 text-'+x[2]+'">'+x[1]+'</div></div>').join('')+
+      '</div>'+
+      '<div class="mt-3 p-3 rounded-[3px] border border-crimson/30 bg-crimson/8 flex gap-2.5">'+ic('alert','w-4 h-4 text-crimson shrink-0 mt-[2px]')+
+      '<div><p class="text-[12.5px] text-frost leading-snug">Projected to cross the safety floor in '+Math.max(0,((focus.qty-focus.min)/focus.daily)).toFixed(0)+' days, before the 17 Jan resupply. An automatic alert has been raised with Logistics Cell.</p>'+
+      '<div class="mt-2 flex gap-2 flex-wrap">'+btn('Raise resupply request','inv-resupply',{kind:'danger',icon:'package'})+btn('Model a lower burn rate','inv-model',{icon:'trend'})+'</div></div></div>'+
+    '</div>'+
+    '<div class="panel rounded-[3px] p-4">'+
+      sectionHead('Stock by category','Share of lines at risk','')+
+      barChart(INV_CATS.slice(1).map(c=>({l:c.split(' ')[0].slice(0,6), v:inventory.filter(i=>i.category===c).length,
+        color: inventory.filter(i=>i.category===c&&invStatus(i)!=='Healthy').length?'#F0A429':'#38BDF8'})),{h:170})+
+      '<div class="mt-4 space-y-2">'+
+      ['Critical','Warning','Healthy'].map(s=>{
+        const n=inventory.filter(i=>invStatus(i)===s).length;
+        return '<div class="flex items-center justify-between panel-flat rounded-[3px] px-3 py-2">'+
+          '<span class="flex items-center gap-2 text-[12.5px] text-frost"><span class="led '+(s==='Critical'?'led-crit':s==='Warning'?'led-warn':'led-ok')+'"></span>'+s+'</span>'+
+          '<span class="tick text-[15px] text-frost">'+n+'</span></div>';
+      }).join('')+'</div>'+
+    '</div>'+
+  '</div>'+
+
+  '<div class="flex flex-wrap gap-2 mb-3 items-center">'+
+    searchBox('inv.q', f.q, 'Search item or location…')+
+    selectBox('inv.cat', f.cat, INV_CATS)+
+    selectBox('inv.status', f.status, ['All','Healthy','Warning','Critical'])+
+    '<span class="ml-auto text-[12px] text-beam tick">'+list.length+' stock lines</span>'+
+  '</div>'+
+  dataTable(['Item','Category','Location','Stock','Min','Max','Burn / day','Days cover','Trend','Expiry','Status'],
+    list.map(i=>{
+      const d=invDays(i), s=invStatus(i);
+      const col=s==='Critical'?'#F0524D':s==='Warning'?'#F0A429':'#3FCF8E';
+      return [ '<button data-act="inv-open" data-id="'+i.id+'" class="text-frost hover:text-ice linkish">'+esc(i.name)+'</button>',
+        esc(i.category), esc(i.location),
+        '<span class="tick">'+fmt(Math.round(i.qty))+' '+i.unit+'</span>',
+        '<span class="tick text-beam">'+fmt(i.min)+'</span>','<span class="tick text-beam">'+fmt(i.max)+'</span>',
+        '<span class="tick">'+i.daily+'</span>',
+        '<span class="tick" style="color:'+col+'">'+(d>365?'365+':d.toFixed(1))+'</span>',
+        spark(i.history.map(h=>h.q), col),
+        '<span class="tick text-beam">'+(i.expiry?dfmt(i.expiry):'—')+'</span>', statusChip(s)];
+    }))+
+  '</div>';
+}
+function invModal(id){
+  const i=inventory.find(x=>x.id===id); if(!i) return;
+  const d=invDays(i);
+  const proj=[]; let q=i.qty; for(let k=0;k<21;k++){ q-=i.daily; proj.push(Math.max(0,Math.round(q))); }
+  openModal(modalHead(i.name, i.category+' · '+i.location)+
+   '<div class="p-5">'+
+    '<div class="grid sm:grid-cols-4 gap-3 mb-4">'+
+    [['STOCK',fmt(Math.round(i.qty))+' '+i.unit],['BURN RATE',i.daily+' '+i.unit+'/day'],['DAYS COVER',d>365?'365+':d.toFixed(1)],['STATUS',invStatus(i)]]
+    .map(x=>'<div class="panel-flat rounded-[3px] p-3"><div class="eyebrow">'+x[0]+'</div><div class="tick text-[18px] text-frost mt-1">'+esc(x[1])+'</div></div>').join('')+'</div>'+
+    lineChart([{data:i.history.map(h=>h.q), color:'#38BDF8', fill:true},
+               {data:new Array(i.history.length-1).fill(i.history[i.history.length-1].q).concat([i.qty]).slice(0,i.history.length).concat(proj), color:'#F0A429', dash:true}],
+      {h:200, threshold:i.min, thresholdLabel:'minimum '+fmt(i.min)})+
+    '<div class="grid sm:grid-cols-2 gap-3 mt-4">'+
+      '<div class="panel-flat rounded-[3px] p-3"><div class="eyebrow mb-2">HOLDING</div>'+
+      [['Minimum threshold',fmt(i.min)+' '+i.unit],['Maximum capacity',fmt(i.max)+' '+i.unit],['Utilisation',Math.round(i.qty/i.max*100)+'%'],['Expiry',i.expiry?dfmt(i.expiry):'Not perishable']]
+      .map(r=>'<div class="flex justify-between text-[12.5px] py-1"><span class="text-beam">'+r[0]+'</span><span class="tick text-frost">'+esc(r[1])+'</span></div>').join('')+'</div>'+
+      '<div class="panel-flat rounded-[3px] p-3"><div class="eyebrow mb-2">ADJUST STOCK</div>'+
+      '<div class="flex gap-2 mb-2"><input data-inv-amt="'+i.id+'" type="number" value="100" class="w-full bg-deck border border-line rounded px-2.5 py-2 text-[13px]"/>'+
+      '<span class="grid place-items-center px-2 text-[12px] text-beam border border-line rounded">'+i.unit+'</span></div>'+
+      '<div class="flex gap-2">'+btn('Receive','inv-add',{kind:'ok',icon:'plus',data:{id:i.id},cls:'flex-1 justify-center'})+
+      btn('Consume','inv-sub',{kind:'danger',icon:'down',data:{id:i.id},cls:'flex-1 justify-center'})+'</div>'+
+      '<p class="text-[11px] text-beam mt-2 leading-snug">Adjustments update the forecast and any linked alerts immediately.</p></div>'+
+    '</div></div>'+
+   '<div class="flex justify-end gap-2 px-5 py-4 border-t border-line">'+btn('Close','close-modal')+'</div>','max-w-3xl');
+}
+
+/* ===================== PERSONNEL ===================== */
+function pagePersonnel(){
+  const f=state.people;
+  const teams=['All'].concat(Array.from(new Set(personnel.map(p=>p.team))));
+  let list=personnel.filter(p=>
+    (f.team==='All'||p.team===f.team) &&
+    (f.status==='All'|| (f.status==='Overdue'?isOverdue(p):p.status===f.status)) &&
+    (!f.q||(p.name+' '+p.id+' '+p.role+' '+p.location).toLowerCase().indexOf(f.q.toLowerCase())>=0));
+  const overdue=personnel.filter(isOverdue);
+  return '<div class="p-4 md:p-6 max-w-[1560px] mx-auto">'+
+  pageHead('Personnel','DIRECTORY · TRACKING · CHECK-IN AUTOMATION',
+    btn('Station roll call','roll-call',{icon:'radio'})+btn('Add person','person-new',{kind:'primary',icon:'plus'}))+
+
+  (overdue.length? '<div class="mb-5 rounded-[3px] border border-crimson/45 bg-crimson/8 overflow-hidden">'+
+    '<div class="flex items-center gap-2 px-4 py-2.5 border-b border-crimson/25 bg-crimson/10">'+
+      '<span class="led led-crit blip"></span><span class="cond text-[15px] tracking-wide text-crimson">PERSONNEL CHECK-IN OVERDUE</span>'+
+      '<span class="tick text-[11.5px] text-beam ml-auto">'+overdue.length+' open · automation rule PCA-02</span></div>'+
+    '<div class="divide-y divide-[#2A1620]">'+overdue.map(p=>{
+      const late=Math.round((NOW-p.expectedCheckIn)/60000);
+      return '<div class="px-4 py-3 grid md:grid-cols-[1fr_auto] gap-3 items-center">'+
+        '<div class="grid sm:grid-cols-4 gap-3">'+
+        [['PERSON',p.name],['EXPECTED',tfmt(p.expectedCheckIn)],['CURRENT',tfmt(NOW)+' (+'+Math.floor(late/60)+' h '+pad(late%60)+' m)'],['LAST KNOWN LOCATION',p.location]]
+        .map(x=>'<div><div class="eyebrow" style="font-size:9.5px">'+x[0]+'</div><div class="text-[12.5px] text-frost mt-0.5">'+esc(x[1])+'</div></div>').join('')+'</div>'+
+        '<div class="flex gap-2 flex-wrap">'+btn('View person','person',{data:{id:p.id}})+btn('Contact team','contact-team',{icon:'radio',data:{id:p.id}})+
+        btn('Create incident','create-incident',{kind:'danger',icon:'siren',data:{id:p.id}})+'</div></div>';
+    }).join('')+'</div></div>':'')+
+
+  '<div class="grid grid-cols-2 md:grid-cols-6 gap-2.5 mb-4">'+
+  [['ON DUTY',personnel.filter(p=>p.status==='On Duty').length,'ok'],['ON MISSION',personnel.filter(p=>p.status==='On Mission').length,'info'],
+   ['RESTING',personnel.filter(p=>p.status==='Resting').length,'idle'],['OFF-STATION',personnel.filter(p=>p.status==='Off-Station').length,'idle'],
+   ['MEDICAL HOLD',personnel.filter(p=>p.status==='Medical Hold').length,'warn'],['OVERDUE',overdue.length,'bad']]
+  .map(x=>'<div class="panel rounded-[3px] p-2.5"><div class="eyebrow" style="font-size:9.5px">'+x[0]+'</div>'+
+    '<div class="tick text-[20px] mt-1 '+({ok:'text-moss',info:'text-ice',warn:'text-amber1',bad:'text-crimson',idle:'text-frost'}[x[2]])+'">'+pad(x[1])+'</div></div>').join('')+'</div>'+
+
+  '<div class="flex flex-wrap gap-2 mb-3 items-center">'+
+    searchBox('people.q', f.q,'Search name, ID, role, location…')+
+    selectBox('people.team', f.team, teams)+
+    selectBox('people.status', f.status, ['All','On Duty','On Mission','Resting','Off-Station','Medical Hold','Overdue'])+
+    '<span class="ml-auto text-[12px] text-beam tick">'+list.length+' of '+personnel.length+' deployed</span>'+
+  '</div>'+
+  dataTable(['ID','Name','Role','Team','Expedition','Location','Status','Last check-in','Actions'],
+    list.slice(0,50).map(p=>{
+      const od=isOverdue(p);
+      return ['<span class="tick text-beam">'+p.id+'</span>',
+        '<button data-act="person" data-id="'+p.id+'" class="flex items-center gap-2 text-frost hover:text-ice linkish">'+
+          '<span class="w-6 h-6 rounded-[3px] bg-glacier/14 border border-glacier/30 text-ice grid place-items-center tick text-[10px]">'+esc(p.name.replace('Dr. ','').split(' ').map(s=>s[0]).join('').slice(0,2))+'</span>'+esc(p.name)+'</button>',
+        esc(p.role), esc(p.team), '<span class="tick text-beam">'+expName(p.expeditionId)+'</span>', esc(p.location),
+        od?chip('Overdue','bad'):statusChip(p.status),
+        '<span class="tick '+(od?'text-crimson':'text-beam')+'">'+tfmt(p.lastCheckIn)+'</span>',
+        '<button data-act="checkin" data-id="'+p.id+'" class="text-[11.5px] text-ice hover:underline">Check in</button>'];
+    }), list.length>50?'Showing 50 of '+list.length:null)+
+  '</div>';
+}
+function personModal(id){
+  const p=personById(id); if(!p) return;
+  const od=isOverdue(p);
+  openModal(modalHead(p.name, p.id+' · '+p.role)+
+   '<div class="p-5 grid md:grid-cols-[240px_1fr] gap-5">'+
+    '<div class="space-y-3">'+
+      '<div class="panel-flat rounded-[3px] p-4 text-center">'+
+        '<div class="w-16 h-16 mx-auto rounded-[4px] bg-glacier/14 border border-glacier/35 text-ice grid place-items-center cond text-[24px]">'+esc(p.name.replace('Dr. ','').split(' ').map(s=>s[0]).join('').slice(0,2))+'</div>'+
+        '<div class="cond text-[17px] text-frost mt-2.5">'+esc(p.name)+'</div>'+
+        '<div class="text-[12px] text-beam">'+esc(p.role)+'</div>'+
+        '<div class="mt-2.5">'+(od?chip('Check-in overdue','bad'):statusChip(p.status))+'</div>'+
+      '</div>'+
+      '<div class="panel-flat rounded-[3px] p-3">'+
+      [['Team',p.team],['Expedition',expName(p.expeditionId)],['Location',p.location],['Blood group',p.blood],['Sat phone',p.sat],['Days on ice',p.onIce],['Assignment',p.assignment]]
+      .map(r=>'<div class="flex justify-between gap-3 text-[12.5px] py-1 border-b border-[#131F33] last:border-0"><span class="text-beam">'+esc(r[0])+'</span><span class="text-frost text-right">'+esc(r[1])+'</span></div>').join('')+'</div>'+
+      '<div class="grid grid-cols-1 gap-2">'+
+        btn('Check in','checkin',{kind:'ok',icon:'check',data:{id:p.id},cls:'justify-center'})+
+        btn('Check out','checkout',{icon:'arrow',data:{id:p.id},cls:'justify-center'})+
+        btn('Report location','report-loc',{icon:'pin',data:{id:p.id},cls:'justify-center'})+
+      '</div>'+
+    '</div>'+
+    '<div>'+
+      (od?'<div class="mb-4 p-3 rounded-[3px] border border-crimson/40 bg-crimson/8 text-[12.5px] text-frost flex gap-2.5">'+ic('alert','w-4 h-4 text-crimson shrink-0 mt-[1px]')+
+        '<span>Expected check-in was '+tfmt(p.expectedCheckIn)+'. It is now '+tfmt(NOW)+'. Automation rule PCA-02 has escalated this to the command centre and armed a 30-minute recheck.</span></div>':'')+
+      '<div class="eyebrow mb-3">MOVEMENT HISTORY — LAST 12 HOURS</div>'+
+      '<ol class="relative pl-6 mb-5">'+p.movements.map((m,i)=>
+        '<li class="relative pb-4 last:pb-0">'+(i<p.movements.length-1?'<span class="absolute left-[-15px] top-4 bottom-0 w-px bg-line"></span>':'')+
+        '<span class="absolute left-[-19px] top-[3px] w-2.5 h-2.5 rounded-full bg-glacier/80"></span>'+
+        '<div class="flex items-baseline gap-3"><span class="tick text-[13px] text-ice">'+tfmt(m.ts)+'</span><span class="text-[13px] text-frost">'+esc(m.place)+'</span></div>'+
+        '<div class="text-[11.5px] text-beam mt-0.5">'+esc(m.via)+'</div></li>').join('')+'</ol>'+
+      '<div class="eyebrow mb-2">CHECK-IN SCHEDULE</div>'+
+      '<div class="grid grid-cols-3 gap-2">'+
+      [['LAST',tfmt(p.lastCheckIn)],['EXPECTED',tfmt(p.expectedCheckIn)],['INTERVAL','6 hours']]
+      .map(x=>'<div class="panel-flat rounded-[3px] p-2.5"><div class="eyebrow" style="font-size:9.5px">'+x[0]+'</div><div class="tick text-[15px] text-frost mt-1">'+x[1]+'</div></div>').join('')+'</div>'+
+    '</div></div>'+
+   '<div class="flex justify-end gap-2 px-5 py-4 border-t border-line">'+btn('Close','close-modal')+'</div>','max-w-3xl');
+}
+
+/* ===================== ASSETS ===================== */
+const ASSET_TYPES=['All','Research Vessel','Snow Vehicle','Aircraft','Generator','Scientific Equipment','Communication Equipment','Medical Equipment'];
+function pageAssets(){
+  const f=state.asset;
+  let list=assets.filter(a=>
+    (f.type==='All'||a.type===f.type)&&(f.status==='All'||a.status===f.status)&&
+    (!f.q||(a.id+' '+a.name+' '+a.location+' '+a.type).toLowerCase().indexOf(f.q.toLowerCase())>=0));
+  const dueSoon=assets.filter(a=>assetRemaining(a)<=150).sort((x,y)=>assetRemaining(x)-assetRemaining(y));
+  return '<div class="p-4 md:p-6 max-w-[1560px] mx-auto">'+
+  pageHead('Assets','REGISTRY · CONDITION · PREDICTIVE MAINTENANCE',
+    btn('Log maintenance','maint-log',{icon:'wrench'})+btn('Register asset','asset-new',{kind:'primary',icon:'plus'}))+
+
+  '<div class="grid xl:grid-cols-3 gap-4 mb-5">'+
+    '<div class="xl:col-span-2 panel rounded-[3px] p-4">'+
+      sectionHead('Maintenance horizon', dueSoon.length+' assets within 150 operating hours of their threshold','')+
+      '<div class="space-y-2.5">'+dueSoon.slice(0,5).map(a=>{
+        const rem=assetRemaining(a), pct=clamp(a.hours/a.threshold*100,0,100);
+        const col = rem<=40?'#F0524D': rem<=100?'#F0A429':'#38BDF8';
+        return '<button data-act="asset-open" data-id="'+a.id+'" class="w-full text-left panel-flat rounded-[3px] p-3 hover:border-line2 linkish">'+
+          '<div class="flex items-center justify-between gap-3 flex-wrap">'+
+            '<div class="flex items-center gap-2.5"><span class="tick text-[12.5px] text-ice">'+a.id+'</span>'+
+            '<span class="text-[13px] text-frost">'+esc(a.name)+'</span>'+chip(a.type,'idle')+'</div>'+
+            '<span class="tick text-[12.5px]" style="color:'+col+'">'+rem+' h remaining</span></div>'+
+          '<div class="mt-2 h-[6px] bg-white/6 rounded-sm overflow-hidden"><div class="h-full" style="width:'+pct+'%;background:'+col+'"></div></div>'+
+          '<div class="flex justify-between tick text-[11px] text-beam mt-1"><span>'+fmt(a.hours)+' h logged</span><span>threshold '+fmt(a.threshold)+' h</span></div>'+
+          (rem<=40?'<div class="mt-2 text-[12px] text-amber1 flex items-center gap-1.5">'+ic('alert','w-3.5 h-3.5')+'Maintenance approaching — schedule before next tasking</div>':'')+
+        '</button>';
+      }).join('')+'</div>'+
+    '</div>'+
+    '<div class="panel rounded-[3px] p-4">'+
+      sectionHead('Fleet condition','Across '+assets.length+' registered assets','')+
+      barChart(['Excellent','Good','Fair','Needs Attention'].map(c=>({l:c.split(' ')[0].slice(0,6), v:assets.filter(a=>a.condition===c).length,
+        color:{Excellent:'#3FCF8E',Good:'#38BDF8',Fair:'#F0A429','Needs Attention':'#F0524D'}[c]})),{h:150})+
+      '<div class="grid grid-cols-2 gap-2 mt-4">'+
+      [['Operational',assets.filter(a=>a.status==='Operational').length,'text-moss'],['In maintenance',assets.filter(a=>a.status==='In Maintenance').length,'text-amber1'],
+       ['Standby',assets.filter(a=>a.status==='Standby').length,'text-ice'],['Out of service',assets.filter(a=>a.status==='Out of Service').length,'text-crimson']]
+      .map(x=>'<div class="panel-flat rounded-[3px] p-2.5"><div class="eyebrow" style="font-size:9.5px">'+x[0].toUpperCase()+'</div><div class="tick text-[19px] mt-1 '+x[2]+'">'+pad(x[1])+'</div></div>').join('')+'</div>'+
+    '</div>'+
+  '</div>'+
+
+  '<div class="flex flex-wrap gap-2 mb-3 items-center">'+
+    searchBox('asset.q', f.q, 'Search asset ID, name, location…')+
+    selectBox('asset.type', f.type, ASSET_TYPES)+
+    selectBox('asset.status', f.status, ['All','Operational','In Maintenance','Standby','Out of Service'])+
+    '<span class="ml-auto text-[12px] text-beam tick">'+list.length+' of '+assets.length+' assets</span>'+
+  '</div>'+
+  dataTable(['Asset ID','Name','Type','Location','Condition','Status','Expedition','Hours','Next maintenance'],
+    list.slice(0,50).map(a=>[
+      '<button data-act="asset-open" data-id="'+a.id+'" class="tick text-ice hover:underline">'+a.id+'</button>',
+      '<span class="text-frost">'+esc(a.name)+'</span>', esc(a.type), esc(a.location), statusChip(a.condition), statusChip(a.status),
+      '<span class="tick text-beam">'+expName(a.expeditionId)+'</span>',
+      '<span class="tick">'+fmt(a.hours)+' / '+fmt(a.threshold)+'</span>',
+      '<span class="tick '+(a.nextMaint-NOW<7*DAY?'text-amber1':'text-beam')+'">'+dfmt(a.nextMaint)+'</span>']),
+    list.length>50?'Showing 50 of '+list.length:null)+
+  '</div>';
+}
+function assetModal(id){
+  const a=assets.find(x=>x.id===id); if(!a) return;
+  const rem=assetRemaining(a);
+  openModal(modalHead(a.id+' · '+a.name, a.type+' · '+a.location)+
+   '<div class="p-5 grid md:grid-cols-[1fr_240px] gap-5">'+
+   '<div>'+
+     '<div class="grid sm:grid-cols-4 gap-3 mb-4">'+
+     [['OPERATING HOURS',fmt(a.hours)],['THRESHOLD',fmt(a.threshold)],['REMAINING',rem+' h'],['CONDITION',a.condition]]
+     .map((x,i)=>'<div class="panel-flat rounded-[3px] p-3"><div class="eyebrow">'+x[0]+'</div><div class="tick text-[18px] mt-1 '+(i===2&&rem<=60?'text-crimson':'text-frost')+'">'+esc(x[1])+'</div></div>').join('')+'</div>'+
+     (rem<=150?'<div class="mb-4 p-3 rounded-[3px] border border-amber1/35 bg-amber1/8 flex gap-2.5">'+ic('wrench','w-4 h-4 text-amber1 shrink-0 mt-[1px]')+
+       '<div><p class="text-[12.5px] text-frost leading-snug">Maintenance approaching. '+rem+' operating hours remain before the '+fmt(a.threshold)+' h service point. Booking the window now keeps the asset available for tasking.</p>'+
+       '<div class="mt-2">'+btn('Create maintenance reminder','maint-remind',{kind:'primary',icon:'clock',data:{id:a.id}})+'</div></div></div>':'')+
+     '<div class="eyebrow mb-3">MAINTENANCE TIMELINE</div>'+
+     '<ol class="relative pl-6">'+
+       '<li class="relative pb-5"><span class="absolute left-[-15px] top-4 bottom-0 w-px bg-line"></span>'+
+       '<span class="absolute left-[-19px] top-1 w-2.5 h-2.5 rounded-full border-2 bg-hull border-amber1"></span>'+
+       '<div class="flex items-center gap-2 flex-wrap"><span class="text-[13px] text-amber1">Next scheduled service</span>'+chip(dfmt(a.nextMaint),'warn')+'</div>'+
+       '<div class="text-[11.5px] text-beam mt-0.5">Planned at '+esc(a.location)+' · '+rem+' operating hours of margin</div></li>'+
+       a.log.map((l,i)=>'<li class="relative pb-5 last:pb-0">'+(i<a.log.length-1?'<span class="absolute left-[-15px] top-4 bottom-0 w-px bg-line"></span>':'')+
+       '<span class="absolute left-[-19px] top-1 w-2.5 h-2.5 rounded-full bg-aurora/80"></span>'+
+       '<div class="flex items-center gap-2 flex-wrap"><span class="text-[13px] text-frost">'+esc(l.kind)+'</span><span class="tick text-[11px] text-beam">'+dfmt(l.ts)+'</span></div>'+
+       '<div class="text-[11.5px] text-beam mt-0.5">'+esc(l.note)+' · '+esc(l.by)+'</div></li>').join('')+
+     '</ol>'+
+   '</div>'+
+   '<div class="space-y-3">'+
+     '<div class="panel-flat rounded-[3px] p-3">'+
+     [['Status',a.status],['Assigned to',expName(a.expeditionId)],['Operator',a.operator],['Last service',dfmt(a.lastMaint)],['Fuel',a.fuel!=null?a.fuel+'%':'—']]
+     .map(r=>'<div class="flex justify-between gap-3 text-[12.5px] py-1 border-b border-[#131F33] last:border-0"><span class="text-beam">'+esc(r[0])+'</span><span class="text-frost text-right">'+esc(r[1])+'</span></div>').join('')+'</div>'+
+     '<div class="panel-flat rounded-[3px] p-3"><div class="eyebrow mb-2">CHANGE STATUS</div>'+
+       '<select data-asset-status="'+a.id+'" class="w-full bg-deck border border-line rounded px-2.5 py-2 text-[12.5px] mb-2">'+
+       ['Operational','In Maintenance','Standby','Out of Service'].map(s=>'<option '+(a.status===s?'selected':'')+'>'+s+'</option>').join('')+'</select>'+
+       btn('Record service completed','maint-done',{kind:'ok',icon:'check',data:{id:a.id},cls:'w-full justify-center'})+'</div>'+
+   '</div></div>'+
+   '<div class="flex justify-end gap-2 px-5 py-4 border-t border-line">'+btn('Close','close-modal')+'</div>','max-w-4xl');
+}
+
+/* ===================== EMERGENCY CENTRE ===================== */
+function severityTone(s){ return s==='Critical'?'bad':s==='High'?'warn':'info'; }
+function pageEmergency(){
+  const open=incidents.filter(i=>i.stage<7);
+  const sel = incidents.find(i=>i.id===state.params.incident) || open[0] || incidents[0];
+  return '<div class="p-4 md:p-6 max-w-[1560px] mx-auto">'+
+  '<div class="rounded-[3px] border border-crimson/40 bg-gradient-to-r from-crimson/12 to-transparent p-4 md:p-5 mb-5">'+
+    '<div class="flex items-center justify-between gap-4 flex-wrap">'+
+      '<div class="flex items-center gap-3">'+
+        '<span class="w-10 h-10 rounded-[3px] bg-crimson/15 border border-crimson/40 text-crimson grid place-items-center">'+ic('siren','w-5 h-5')+'</span>'+
+        '<div><div class="eyebrow text-crimson/80">EMERGENCY COMMAND</div>'+
+        '<h1 class="cond text-[26px] md:text-[30px] font-600 tracking-wide leading-none text-frost">Emergency Centre</h1></div>'+
+      '</div>'+
+      '<div class="flex items-center gap-3 flex-wrap">'+
+        '<div class="text-right"><div class="eyebrow">OPEN INCIDENTS</div><div class="tick text-[26px] text-crimson leading-none mt-1">'+pad(open.length)+'</div></div>'+
+        '<button data-act="sos" class="flex items-center gap-2.5 px-6 py-3.5 rounded-[3px] bg-crimson text-white hover:bg-crimson/85 linkish cond text-[20px] font-700 tracking-[.18em] shadow-lg shadow-crimson/20">'+
+          ic('siren','w-6 h-6',2)+'SOS</button>'+
+      '</div></div>'+
+  '</div>'+
+
+  '<div class="grid xl:grid-cols-[360px_1fr] gap-4">'+
+    '<div class="space-y-3">'+
+      '<div class="panel rounded-[3px] p-3">'+
+        '<div class="eyebrow mb-2.5">ACTIVE INCIDENTS</div>'+
+        '<div class="space-y-2">'+incidents.map(i=>{
+          const on = sel && i.id===sel.id;
+          const col = i.severity==='Critical'?'#F0524D':i.severity==='High'?'#F0A429':'#38BDF8';
+          return '<button data-act="incident" data-id="'+i.id+'" class="w-full text-left p-3 rounded-[3px] border linkish '+(on?'border-glacier/45 bg-glacier/8':'border-line hover:border-line2')+' '+(i.stage>=7?'opacity-60':'')+'">'+
+            '<div class="flex items-start gap-2.5"><span class="led '+(i.severity==='Critical'?'led-crit':i.severity==='High'?'led-warn':'led-info')+' mt-[6px] '+(i.stage<7&&i.severity==='Critical'?'blip':'')+'"></span>'+
+            '<div class="min-w-0 flex-1"><div class="flex items-center justify-between gap-2"><span class="text-[13px] text-frost">'+esc(i.type)+'</span><span class="tick text-[10.5px] text-beam">'+i.id+'</span></div>'+
+            '<div class="text-[11.5px] text-beam mt-0.5">'+esc(i.location)+' · '+ago(i.ts)+'</div>'+
+            '<div class="mt-1.5 flex items-center gap-2">'+chip(i.stage>=7?'Resolved':WORKFLOW[i.stage], i.stage>=7?'ok':severityTone(i.severity))+'</div>'+
+            '</div></div></button>';
+        }).join('')+'</div></div>'+
+      '<div class="panel rounded-[3px] p-3">'+
+        '<div class="eyebrow mb-2.5">RESPONSE TEAMS</div>'+
+        '<div class="space-y-2">'+RESPONSE_TEAMS.map(t=>
+          '<div class="panel-flat rounded-[3px] p-2.5"><div class="flex items-center justify-between gap-2">'+
+          '<span class="text-[12.5px] text-frost">'+esc(t.name)+'</span>'+chip(t.ready?'Ready':'Committed', t.ready?'ok':'warn')+'</div>'+
+          '<div class="text-[11px] text-beam mt-1">'+esc(t.base)+' · '+t.members+' members · '+esc(t.skills)+'</div></div>').join('')+
+        '</div></div>'+
+    '</div>'+
+    '<div>'+(sel?incidentPanel(sel):emptyState('No incidents on record','Everything is quiet. The SOS button raises a new incident.'))+'</div>'+
+  '</div></div>';
+}
+function incidentPanel(inc){
+  const p = personById(inc.personId);
+  const team = RESPONSE_TEAMS.find(t=>t.id===inc.team);
+  const veh = assets.find(a=>a.id===inc.vehicle);
+  return '<div class="panel rounded-[3px] p-4 mb-4">'+
+    '<div class="flex items-start justify-between gap-4 flex-wrap mb-4">'+
+      '<div><div class="eyebrow">'+inc.id+' · OPENED '+dtfmt(inc.ts).toUpperCase()+'</div>'+
+      '<h2 class="cond text-[22px] font-600 text-frost mt-1">'+esc(inc.type)+' — '+esc(inc.location)+'</h2>'+
+      '<p class="text-[12.5px] text-beam mt-1.5 max-w-[70ch] leading-relaxed">'+esc(inc.summary)+'</p></div>'+
+      chip(inc.stage>=7?'Resolved':inc.severity, inc.stage>=7?'ok':severityTone(inc.severity))+
+    '</div>'+
+    '<div class="grid sm:grid-cols-4 gap-3 mb-5">'+
+    [['PERSON', p?p.name:'Station sensor'],['RESPONSE TEAM', team?team.name:'Not yet assigned'],
+     ['VEHICLE', veh?veh.id+' '+veh.name:'Not yet assigned'],['ELAPSED', Math.floor((NOW-inc.ts)/60000/60)+' h '+pad(Math.round((NOW-inc.ts)/60000)%60)+' m']]
+    .map(x=>'<div class="panel-flat rounded-[3px] p-3"><div class="eyebrow">'+x[0]+'</div><div class="text-[12.5px] text-frost mt-1 leading-snug">'+esc(x[1])+'</div></div>').join('')+'</div>'+
+
+    '<div class="eyebrow mb-3">RESPONSE WORKFLOW</div>'+
+    '<div class="scroll-x pb-1"><div class="flex items-center gap-1 min-w-[820px]">'+
+    WORKFLOW.map((w,i)=>{
+      const done=i<=inc.stage, cur=i===inc.stage;
+      return '<div class="flex items-center gap-1 flex-1">'+
+        '<div class="flex-1 rounded-[3px] border px-2.5 py-2.5 text-center linkish '+
+          (cur?'border-crimson/60 bg-crimson/12':done?'border-aurora/40 bg-aurora/8':'border-line bg-hull/40')+'">'+
+          '<div class="tick text-[10px] '+(done?'text-aurora':'text-beam')+'">'+pad(i+1)+'</div>'+
+          '<div class="text-[11.5px] mt-1 leading-tight '+(cur?'text-frost':done?'text-frost/85':'text-beam')+'">'+esc(w)+'</div></div>'+
+        (i<WORKFLOW.length-1?'<span class="'+(i<inc.stage?'text-aurora':'text-line2')+'">'+ic('chev','w-3.5 h-3.5')+'</span>':'')+
+      '</div>';
+    }).join('')+'</div></div>'+
+
+    '<div class="flex gap-2 flex-wrap mt-4 pt-4 border-t border-line">'+
+      (inc.stage<4?btn('Assign response team','inc-assign',{kind:'primary',icon:'users',data:{id:inc.id}}):'')+
+      (inc.stage>=4&&inc.stage<5?btn('Dispatch team','inc-dispatch',{kind:'danger',icon:'siren',data:{id:inc.id}}):'')+
+      (inc.stage===5?btn('Team arrived','inc-arrived',{kind:'primary',icon:'pin',data:{id:inc.id}}):'')+
+      (inc.stage===6?btn('Resolve incident','inc-resolve',{kind:'ok',icon:'check',data:{id:inc.id}}):'')+
+      (inc.stage>=7?chip('Incident closed '+dtfmt(inc.log[inc.log.length-1].ts),'ok'):'')+
+      btn('Escalate severity','inc-escalate',{icon:'trend',data:{id:inc.id}})+
+      btn('Broadcast to all stations','inc-broadcast',{icon:'radio',data:{id:inc.id}})+
+    '</div>'+
+  '</div>'+
+  '<div class="panel rounded-[3px] p-4">'+
+    sectionHead('Incident log','Every state change is timestamped and attributable','')+
+    '<ol class="relative pl-6">'+inc.log.slice().reverse().map((l,i)=>
+      '<li class="relative pb-4 last:pb-0">'+(i<inc.log.length-1?'<span class="absolute left-[-15px] top-4 bottom-0 w-px bg-line"></span>':'')+
+      '<span class="absolute left-[-19px] top-[3px] w-2.5 h-2.5 rounded-full bg-crimson/70"></span>'+
+      '<div class="flex items-baseline gap-3 flex-wrap"><span class="tick text-[12px] text-ice">'+dtfmt(l.ts)+'</span>'+
+      '<span class="text-[13px] text-frost">'+esc(l.text)+'</span></div>'+
+      '<div class="text-[11px] text-beam mt-0.5">'+esc(l.by)+'</div></li>').join('')+'</ol></div>';
+}
+function sosFlow(){
+  const person = personnel.filter(isOverdue)[0] || personnel.find(p=>p.status==='On Mission') || personnel[0];
+  const loc = person.location;
+  const team = RESPONSE_TEAMS.find(t=>t.ready) || RESPONSE_TEAMS[0];
+  const veh = assets.filter(a=>a.type==='Snow Vehicle'&&a.status==='Operational')[0];
+  const kit = inventory.find(i=>i.category==='Medical'&&i.qty>0);
+  const id='INC-'+ri(4420,4499);
+  const inc={ id:id, type:'SOS — Personnel Distress', severity:'Critical', location:loc, personId:person.id,
+    ts:NOW, stage:4, team:team.id, vehicle:veh?veh.id:null,
+    summary:'SOS beacon activated by '+person.name+' at '+loc+'. Automatic triage assigned '+team.name+' and '+(veh?veh.id:'no vehicle')+'.',
+    log:[] };
+  for(let k=0;k<=4;k++) inc.log.push({ts:NOW+k*12000, text:WORKFLOW[k], by:'SOS automation'});
+  incidents.unshift(inc); refreshSignals();
+  openModal(
+   '<div class="px-5 py-4 border-b border-crimson/35 bg-crimson/10 flex items-center gap-3">'+
+     '<span class="w-9 h-9 rounded-[3px] bg-crimson/20 border border-crimson/45 text-crimson grid place-items-center">'+ic('siren','w-5 h-5')+'</span>'+
+     '<div><div class="eyebrow text-crimson/80">SOS RECEIVED · '+tfmt(NOW)+'</div>'+
+     '<h3 class="cond text-[21px] font-700 tracking-wide text-frost">Incident created — '+inc.id+'</h3></div>'+
+     '<button data-act="close-modal" class="ml-auto text-beam hover:text-frost p-1">'+ic('x','w-5 h-5')+'</button></div>'+
+   '<div class="p-5">'+
+     '<div class="grid sm:grid-cols-2 gap-3 mb-4">'+
+     [['PERSON',person.name+' · '+person.id,'users'],['LOCATION',loc+' (beacon fix ±40 m)','pin'],
+      ['SEVERITY','Critical — life safety','alert'],['NEAREST RESPONSE TEAM',team.name+' · '+team.base,'shield'],
+      ['NEAREST VEHICLE',(veh?veh.id+' '+veh.name:'None available')+' · 18 min ETA','truck'],
+      ['MEDICAL RESOURCES',(kit?kit.name+' available at '+kit.location:'Check medical store'),'heart']]
+     .map(x=>'<div class="panel-flat rounded-[3px] p-3 flex gap-2.5"><span class="text-ice shrink-0 mt-[2px]">'+ic(x[2],'w-4 h-4')+'</span>'+
+       '<div><div class="eyebrow">'+x[0]+'</div><div class="text-[12.5px] text-frost mt-1 leading-snug">'+esc(x[1])+'</div></div></div>').join('')+'</div>'+
+     '<div class="flex items-center justify-between gap-3 p-3 rounded-[3px] border border-crimson/35 bg-crimson/8 flex-wrap">'+
+       '<div class="flex items-center gap-2.5">'+ic('radio','w-4 h-4 text-crimson')+
+       '<span class="text-[13px] text-frost">Command centre notified · response timer running</span></div>'+
+       '<span class="tick text-[20px] text-crimson">00:00:'+pad(ri(8,52))+'</span></div>'+
+     '<div class="mt-4"><div class="eyebrow mb-2">RESPONSE STATUS</div>'+
+       '<div class="flex items-center gap-2 flex-wrap">'+WORKFLOW.slice(0,5).map(w=>chip(w,'bad')).join('')+chip('Team Dispatched — pending','idle')+'</div></div>'+
+   '</div>'+
+   '<div class="flex justify-end gap-2 px-5 py-4 border-t border-line">'+
+     btn('Close','close-modal')+btn('Open incident','inc-open',{kind:'danger',icon:'siren',data:{id:inc.id}})+'</div>','max-w-2xl');
+  toast('SOS received. '+inc.id+' created and '+team.name+' assigned.','bad');
+}
+
+/* ===================== SMART INSIGHTS ===================== */
+function pageInsights(){
+  const ins=buildInsights();
+  const rules=[
+    ['PCA-02','Personnel check-in overdue','Raises a critical alert 15 minutes after a missed field check-in and arms a 30-minute recheck.', personnel.filter(isOverdue).length],
+    ['INV-07','Consumable depletion','Projects days of cover from a 21-day rolling burn rate and alerts below 12 days.', inventory.filter(i=>invStatus(i)==='Critical').length],
+    ['MNT-03','Maintenance threshold','Alerts when an asset comes within 150 operating hours of its service point.', assets.filter(a=>assetRemaining(a)<=150).length],
+    ['CGO-05','Shipment slip','Flags consignments whose revised arrival lands after a dependent mission start.', cargo.filter(c=>c.status==='Delayed').length],
+    ['WX-01','Weather hold','Suspends field tasking when forecast gusts exceed 60 kn or visibility drops below 200 m.', 1],
+    ['FUEL-04','Burn-rate deviation','Compares observed fuel consumption with the planned profile and alerts beyond 10%.', 1]
+  ];
+  return '<div class="p-4 md:p-6 max-w-[1560px] mx-auto">'+
+  pageHead('Smart Insights','AUTOMATED RISK DETECTION · PREDICTIVE ANALYTICS',
+    btn('Ask the copilot','go',{kind:'primary',icon:'bot',data:{page:'copilot'}}))+
+  '<div class="grid lg:grid-cols-2 gap-3 mb-5">'+ins.map(insightCard).join('')+'</div>'+
+  '<div class="grid xl:grid-cols-2 gap-4">'+
+    '<div class="panel rounded-[3px] p-4">'+sectionHead('Automation rules','Conditions the platform evaluates continuously','')+
+      '<div class="space-y-2">'+rules.map(r=>
+        '<div class="panel-flat rounded-[3px] p-3 flex items-start gap-3">'+
+        '<span class="tick text-[11px] text-ice border border-glacier/30 rounded px-1.5 py-[2px] mt-[1px]">'+r[0]+'</span>'+
+        '<div class="min-w-0 flex-1"><div class="flex items-center justify-between gap-2"><span class="text-[13px] text-frost">'+esc(r[1])+'</span>'+
+        (r[3]?chip(r[3]+' firing','warn'):chip('Quiet','ok'))+'</div>'+
+        '<p class="text-[11.5px] text-beam mt-1 leading-snug">'+esc(r[2])+'</p></div></div>').join('')+'</div></div>'+
+    '<div class="panel rounded-[3px] p-4">'+sectionHead('Risk outlook — next 30 days','Composite of logistics, stock, maintenance and weather signals','')+
+      lineChart([
+        {data:[22,25,24,29,34,41,46,44,49,58,63,61,57,52,48,45,43,40,38,35,33,31,30,28,27,26,25,24,23,22], color:'#F0524D', fill:true},
+        {data:[20,20,21,21,22,22,23,23,24,24,25,25,26,26,27,27,28,28,29,29,30,30,31,31,32,32,33,33,34,34], color:'#38BDF8', dash:true}
+      ],{h:210, labels:Array.from({length:30},(_,i)=> i%5===0?'D+'+i:'')})+
+      '<div class="flex items-center gap-4 mt-3 text-[11.5px] text-beam">'+
+        '<span class="inline-flex items-center gap-1.5"><span class="w-3 h-[2px] bg-crimson"></span>Modelled risk index</span>'+
+        '<span class="inline-flex items-center gap-1.5"><span class="w-3 h-[2px] bg-glacier"></span>Tolerance band</span></div>'+
+      '<p class="text-[12px] text-beam mt-3 leading-relaxed">Risk peaks around D+10 to D+12 when the fuel floor, the G-04 service point and the delayed drill head converge. Clearing any one of the three keeps the index inside tolerance.</p>'+
+    '</div>'+
+  '</div></div>';
+}
+
+/* ===================== ANALYTICS ===================== */
+function pageAnalytics(){
+  const catW={}; cargo.forEach(c=> catW[c.category]=(catW[c.category]||0)+c.weight);
+  return '<div class="p-4 md:p-6 max-w-[1560px] mx-auto">'+
+  pageHead('Analytics','OPERATIONAL PERFORMANCE · SEASON 2027–28', btn('Export dataset','export-data',{icon:'down'}))+
+  '<div class="grid md:grid-cols-4 gap-3 mb-4">'+
+  [['CARGO THROUGHPUT',fmt(Math.round(cargo.reduce((s,c)=>s+c.weight,0)/1000))+' t','+12% vs ISEA-43'],
+   ['ON-TIME ARRIVAL','87%','−4 pts vs plan'],
+   ['ASSET AVAILABILITY',Math.round(assets.filter(a=>a.status==='Operational').length/assets.length*100)+'%','target 90%'],
+   ['LOST-TIME INCIDENTS','0','142 days clear']]
+  .map(x=>'<div class="panel rounded-[3px] p-3.5"><div class="eyebrow">'+x[0]+'</div><div class="tick text-[26px] text-frost mt-1.5">'+x[1]+'</div><div class="text-[11.5px] text-beam mt-1">'+x[2]+'</div></div>').join('')+'</div>'+
+  '<div class="grid xl:grid-cols-2 gap-4 mb-4">'+
+    '<div class="panel rounded-[3px] p-4">'+sectionHead('Fuel consumption vs plan','Litres per day at Maitri Station, last 21 days','')+
+      lineChart([
+        {data:[512,524,498,540,556,588,602,595,610,618,634,612,606,620,645,628,616,630,641,620,620], color:'#F0A429', fill:true},
+        {data:new Array(21).fill(544), color:'#38BDF8', dash:true}
+      ],{h:210, labels:Array.from({length:21},(_,i)=> i%4===0?'D−'+(20-i):'')})+
+      '<p class="text-[12px] text-beam mt-3">Observed burn is 14% above the planned 544 L/day profile, tracking the dual-generator load during the power retrofit.</p></div>'+
+    '<div class="panel rounded-[3px] p-4">'+sectionHead('Cargo weight by category','Tonnes moved this season','')+
+      barChart(Object.keys(catW).map(k=>({l:k.split(' ')[0].slice(0,7), v:Math.round(catW[k]/1000)})),{h:210})+
+      '<p class="text-[12px] text-beam mt-3">Fuel and food account for most of the tonnage; scientific equipment drives most of the schedule risk.</p></div>'+
+  '</div>'+
+  '<div class="grid xl:grid-cols-3 gap-4">'+
+    '<div class="panel rounded-[3px] p-4">'+sectionHead('Personnel by discipline','','')+
+      barChart(['Science','Engineering','Medical','Logistics','Vessel','Safety','Support'].map(g=>({l:g.slice(0,6), v:personnel.filter(p=>p.group===g).length})),{h:200})+'</div>'+
+    '<div class="panel rounded-[3px] p-4">'+sectionHead('Incident response times','Minutes from detection to team dispatch','')+
+      barChart([{l:'Oct',v:24},{l:'Nov',v:19},{l:'Dec',v:14},{l:'Target',v:15,color:'#3FCF8E'}],{h:200})+
+      '<p class="text-[12px] text-beam mt-3">Median dispatch time has fallen to 14 minutes since automatic resource matching was switched on.</p></div>'+
+    '<div class="panel rounded-[3px] p-4">'+sectionHead('Station readiness','Composite health per expedition','')+
+      '<div class="space-y-3.5 mt-1">'+expeditions.filter(e=>e.status!=='Archived').map(e=>{
+        const avg=Math.round(Object.keys(e.health).reduce((s,k)=>s+e.health[k],0)/5);
+        return '<div><div class="flex justify-between text-[12px] mb-1"><span class="text-frost">'+esc(e.code)+'</span><span class="tick text-beam">'+avg+'%</span></div>'+
+        '<div class="h-[6px] bg-white/6 rounded-sm overflow-hidden"><div class="h-full" style="width:'+avg+'%;background:'+(avg>=85?'#3FCF8E':avg>=70?'#7FD7FF':'#F0A429')+'"></div></div></div>';
+      }).join('')+'</div></div>'+
+  '</div></div>';
+}
+
+/* ===================== REPORTS ===================== */
+const REPORTS=[
+  ['sitrep','Daily situation report','Position, personnel state, open alerts and the next 72 hours.','file'],
+  ['cargo','Cargo manifest','Every consignment with weight, chain state and expected arrival.','package'],
+  ['inv','Inventory and depletion','Stock lines, burn rates, days of cover and resupply pull.','boxes'],
+  ['maint','Maintenance forecast','Assets by remaining operating hours and scheduled service windows.','wrench'],
+  ['safety','Safety and incident summary','Incidents, response times and outstanding corrective actions.','shield'],
+  ['season','Season closure report','Full programme summary for the Ministry, ready for review.','archive']
+];
+function pageReports(){
+  return '<div class="p-4 md:p-6 max-w-[1560px] mx-auto">'+
+  pageHead('Reports','GENERATED FROM LIVE OPERATIONAL DATA','')+
+  '<div class="grid md:grid-cols-2 xl:grid-cols-3 gap-3 mb-5">'+REPORTS.map(r=>
+    '<div class="panel rounded-[3px] p-4 flex flex-col">'+
+    '<div class="flex items-center gap-2.5 text-ice">'+ic(r[3],'w-4 h-4')+'<h3 class="cond text-[16px] text-frost">'+esc(r[1])+'</h3></div>'+
+    '<p class="text-[12px] text-beam mt-2 leading-relaxed flex-1">'+esc(r[2])+'</p>'+
+    '<div class="flex gap-2 mt-3">'+btn('Generate','gen-report',{kind:'primary',icon:'arrow',data:{r:r[0]},cls:'flex-1 justify-center'})+'</div></div>').join('')+
+  '</div>'+
+  (state.reportOut?'<div class="panel rounded-[3px] overflow-hidden">'+
+    '<div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-line flex-wrap">'+
+      '<div><div class="eyebrow">GENERATED '+dtfmt(NOW).toUpperCase()+'</div>'+
+      '<h3 class="cond text-[18px] text-frost mt-0.5">'+esc(state.reportOut.title)+'</h3></div>'+
+      '<div class="flex gap-2">'+btn('Copy to clipboard','copy-report',{icon:'file'})+btn('Print','print-report',{kind:'primary',icon:'down'})+'</div></div>'+
+    '<pre id="reportbody" class="p-5 text-[12px] leading-relaxed text-frost whitespace-pre-wrap tick overflow-x-auto">'+esc(state.reportOut.body)+'</pre></div>'
+   :'<div class="panel rounded-[3px] p-8 text-center"><p class="text-[13px] text-frost">No report generated yet</p>'+
+    '<p class="text-[12px] text-beam mt-1">Pick a report above and it will be built from the current operational picture.</p></div>')+
+  '</div>';
+}
+function generateReport(kind){
+  const L=[]; const rule='─'.repeat(62);
+  const exp=expeditions.find(e=>e.id===state.expedition);
+  L.push('NATIONAL CENTRE FOR POLAR AND OCEAN RESEARCH');
+  L.push('Ministry of Earth Sciences · PolarOps command platform');
+  L.push(rule);
+  const titles={sitrep:'DAILY SITUATION REPORT',cargo:'CARGO MANIFEST',inv:'INVENTORY AND DEPLETION REPORT',maint:'MAINTENANCE FORECAST',safety:'SAFETY AND INCIDENT SUMMARY',season:'SEASON CLOSURE REPORT'};
+  L.push(titles[kind]);
+  L.push('Generated '+dtfmt(NOW)+' · Expedition '+exp.code+' · '+exp.destination);
+  L.push(rule); L.push('');
+  if(kind==='sitrep'||kind==='season'){
+    L.push('1. OPERATIONAL SUMMARY');
+    L.push('   Active expeditions ............ '+expeditions.filter(e=>e.status==='Active').length);
+    L.push('   Personnel deployed ............ '+personnel.length);
+    L.push('   Cargo in transit .............. '+cargo.filter(c=>c.status==='In Transit').length+' consignments');
+    L.push('   Operational assets ............ '+assets.filter(a=>a.status==='Operational').length+' of '+assets.length);
+    L.push('   Open incidents ................ '+incidents.filter(i=>i.stage<7).length);
+    L.push('   Inventory lines at risk ....... '+inventory.filter(i=>invStatus(i)!=='Healthy').length);
+    L.push('');
+    L.push('2. OPEN ALERTS');
+    alerts.slice(0,8).forEach(a=> L.push('   ['+a.level.toUpperCase().slice(0,4)+'] '+a.title));
+    L.push('');
+    L.push('3. EXPEDITION HEALTH — '+exp.code);
+    Object.keys(exp.health).forEach(k=> L.push('   '+(k+' ').padEnd(16,'.')+' '+exp.health[k]+'%'));
+  }
+  if(kind==='cargo'){
+    L.push('CONSIGNMENT LISTING ('+cargo.length+' lines, '+fmt(cargo.reduce((s,c)=>s+c.weight,0))+' kg)');
+    L.push('');
+    L.push('ID           WEIGHT     STATUS        DESTINATION');
+    cargo.slice(0,30).forEach(c=> L.push(c.id.padEnd(13)+(fmt(c.weight)+' kg').padEnd(11)+c.status.padEnd(14)+c.destination));
+    L.push('');
+    L.push('Delayed consignments: '+cargo.filter(c=>c.status==='Delayed').map(c=>c.id).join(', '));
+  }
+  if(kind==='inv'){
+    L.push('ITEM                          LOCATION            STOCK      DAYS   STATUS');
+    inventory.forEach(i=> L.push(i.name.slice(0,29).padEnd(30)+i.location.slice(0,19).padEnd(20)+(fmt(Math.round(i.qty))+' '+i.unit).padEnd(11)+invDays(i).toFixed(1).padEnd(7)+invStatus(i)));
+    L.push('');
+    L.push('Resupply pull recommended for '+inventory.filter(i=>invStatus(i)==='Critical').length+' lines before 17 Jan 2028.');
+  }
+  if(kind==='maint'){
+    L.push('ASSET    NAME                      HOURS / THRESHOLD   REMAINING   NEXT SERVICE');
+    assets.slice().sort((a,b)=>assetRemaining(a)-assetRemaining(b)).slice(0,20).forEach(a=>
+      L.push(a.id.padEnd(9)+a.name.slice(0,25).padEnd(26)+(fmt(a.hours)+' / '+fmt(a.threshold)).padEnd(20)+(assetRemaining(a)+' h').padEnd(12)+dfmt(a.nextMaint)));
+  }
+  if(kind==='safety'){
+    L.push('INCIDENT REGISTER');
+    incidents.forEach(i=>{
+      L.push('   '+i.id+'  '+i.type+' — '+i.location);
+      L.push('      Severity '+i.severity+' · opened '+dtfmt(i.ts)+' · stage: '+(i.stage>=7?'Resolved':WORKFLOW[i.stage]));
+      L.push('      '+i.summary);
+    });
+    L.push('');
+    L.push('Median dispatch time: 14 minutes. Lost-time incidents this season: 0.');
+  }
+  L.push(''); L.push(rule);
+  L.push('Prepared by PolarOps · '+exp.lead+' · all figures from simulated operational data.');
+  state.reportOut={title:titles[kind], body:L.join('\n')};
+  render(); toast('Report generated.');
+}
+
+/* ===================== AI COPILOT ===================== */
+const SUGGESTED=[
+  'What is the biggest operational risk right now?',
+  'How many days of fuel do we have at Maitri?',
+  'Which cargo is delayed and what does it block?',
+  'Who has not checked in?',
+  'Which assets need maintenance this week?',
+  'Summarise the state of ISEA-44.'
+];
+function copilotAnswer(q){
+  const t=q.toLowerCase();
+  const fuel=inventory.find(i=>i.name==='Polar diesel (ATK)'&&i.location==='Maitri Station');
+  if(/fuel|diesel|litre|liter/.test(t)){
+    const d=invDays(fuel);
+    return {text:'Maitri holds '+fmt(Math.round(fuel.qty))+' L of polar diesel against a 21-day average burn of '+fuel.daily+' L/day, which is '+d.toFixed(1)+' days of cover. The safety floor of '+fmt(fuel.min)+' L is reached in about '+Math.round((fuel.qty-fuel.min)/fuel.daily)+' days — before the 17 January resupply. Burn is running 14% above the planned 544 L/day because both generators are online for the power retrofit. Dropping to single-generator operation outside working hours recovers roughly 4 days of cover.',
+      go:{page:'inventory',label:'Open fuel forecast'}};
+  }
+  if(/delay|cargo|shipment|consign/.test(t)){
+    const d=cargo.filter(c=>c.status==='Delayed');
+    return {text:d.length+' consignments are delayed. The one that matters is '+d[0].id+' ('+d[0].item+'), held at '+d[0].location+' with a revised arrival of '+dfmt(d[0].eta)+'. It is the drill head for MSN-101 at Field Camp Bravo, so a slip past 28 December costs that mission its weather window. The rest are spare parts with slack in the schedule.',
+      go:{page:'cargo',label:'Open cargo control'}};
+  }
+  if(/check.?in|overdue|missing|not checked/.test(t)){
+    const od=personnel.filter(isOverdue);
+    return {text: od.length? od.length+' people are past their check-in window: '+od.map(p=>p.name+' at '+p.location+' (expected '+tfmt(p.expectedCheckIn)+')').join('; ')+'. All three are in the Field Camp Bravo / Route 04 area, which lost VHF coverage when the repeater failed under INC-4416. That points at a comms fault rather than three independent personnel events, but rule PCA-02 keeps them escalated until voice contact is confirmed.'
+      :'Everyone deployed has checked in inside their window.', go:{page:'personnel',label:'Open personnel tracking'}};
+  }
+  if(/maint|service|asset|vehicle|generator/.test(t)){
+    const due=assets.filter(a=>assetRemaining(a)<=150).sort((a,b)=>assetRemaining(a)-assetRemaining(b));
+    return {text: due.length+' assets are within 150 operating hours of a service point. The binding one is '+due[0].id+' '+due[0].name+' at '+due[0].location+' with '+assetRemaining(due[0])+' hours left. Servicing it during the blizzard hold on 15–16 December costs nothing operationally, because field tasking is suspended anyway.',
+      go:{page:'assets',label:'Open maintenance plan'}};
+  }
+  if(/risk|worry|concern|biggest|priority|attention/.test(t)){
+    return {text:'Three things, in order. First, fuel at Maitri: '+invDays(fuel).toFixed(1)+' days of cover with burn 14% above plan, and the resupply is 34 days out. Second, the delayed drill head CGO-SCI-1024, which is the only item on the critical path for two ice-core missions. Third, generator G-04 at 920 of 950 hours during a retrofit that needs dual-generator supply. The fuel and the generator interact: single-generator operation saves fuel but removes the redundancy the retrofit relies on.',
+      go:{page:'insights',label:'Open smart insights'}};
+  }
+  if(/emergency|incident|sos|medical|rescue/.test(t)){
+    const open=incidents.filter(i=>i.stage<7);
+    return {text: open.length+' incidents are open. The critical one is '+open[0].id+', a '+open[0].type.toLowerCase()+' at '+open[0].location+', currently at "'+WORKFLOW[open[0].stage]+'" with '+(RESPONSE_TEAMS.find(t2=>t2.id===open[0].team)||{name:'no team'}).name+' responding. Elapsed time is '+Math.round((NOW-open[0].ts)/60000)+' minutes.',
+      go:{page:'emergency',label:'Open emergency centre'}};
+  }
+  if(/isea|expedition|summar|status of/.test(t)){
+    const e=expeditions.find(x=>x.id===state.expedition);
+    const avg=Math.round(Object.keys(e.health).reduce((s,k)=>s+e.health[k],0)/5);
+    return {text:e.code+' — '+e.name+' — is '+e.status.toLowerCase()+', running '+dfmt(e.start)+' to '+dfmt(e.end)+' out of '+e.base+'. Composite health is '+avg+'%, held back by inventory at '+e.health.inventory+'%. It carries '+personnel.filter(p=>p.expeditionId===e.id).length+' people, '+cargo.filter(c=>c.expeditionId===e.id).length+' cargo lines and '+assets.filter(a=>a.expeditionId===e.id).length+' assets. '+missions.filter(m=>m.expeditionId===e.id&&m.state==='Blocked').length+' missions are currently blocked.',
+      go:{page:'expeditions',label:'Open expedition'}};
+  }
+  if(/weather|blizzard|wind|storm/.test(t)){
+    return {text:'A katabatic surge is forecast from 06:00 tomorrow through about 22:00, with gusts to 78 knots and visibility below 100 metres over Dronning Maud Land. Field movement should be suspended for roughly 16 hours. That removes about 16 working hours from the cargo discharge window, so fuel and medical pallets should be landed ahead of spare-part containers.',
+      go:{page:'live',label:'Open live operations'}};
+  }
+  if(/personnel|people|crew|how many/.test(t)){
+    return {text: personnel.length+' people are deployed across '+expeditions.filter(e=>e.status==='Active').length+' active expeditions: '+
+      ['Science','Engineering','Medical','Logistics','Vessel','Safety','Support'].map(g=>personnel.filter(p=>p.group===g).length+' '+g.toLowerCase()).join(', ')+'. '+
+      personnel.filter(p=>p.status==='On Mission').length+' are currently on mission away from their base.', go:{page:'personnel',label:'Open directory'}};
+  }
+  return {text:'I can work from the live operational picture — fuel and consumable cover, cargo movement and delays, personnel check-ins, asset maintenance, open incidents, weather impact, and expedition health. Ask me about any of those and I will answer from current data rather than generalities.', go:null};
+}
+function pageCopilot(){
+  return '<div class="p-4 md:p-6 max-w-[1100px] mx-auto flex flex-col" style="min-height:calc(100vh - 58px)">'+
+  pageHead('AI Copilot','GROUNDED IN THE CURRENT OPERATIONAL PICTURE', btn('Clear conversation','copilot-clear',{icon:'x'}))+
+  '<div class="flex-1 panel rounded-[3px] p-4 flex flex-col min-h-[420px]">'+
+    '<div id="copilot-log" class="flex-1 overflow-y-auto space-y-3 pr-1">'+
+    (state.copilot.length? state.copilot.map(m=>
+      m.role==='user'
+      ? '<div class="flex justify-end"><div class="max-w-[76%] rounded-[3px] rounded-tr-none bg-glacier/14 border border-glacier/30 px-3.5 py-2.5 text-[13px] text-frost">'+esc(m.text)+'</div></div>'
+      : '<div class="flex gap-2.5"><span class="w-7 h-7 shrink-0 rounded-[3px] bg-aurora/12 border border-aurora/30 text-aurora grid place-items-center">'+ic('bot','w-4 h-4')+'</span>'+
+        '<div class="max-w-[82%] panel-flat rounded-[3px] rounded-tl-none px-3.5 py-2.5"><p class="text-[13px] text-frost leading-relaxed">'+esc(m.text)+'</p>'+
+        (m.go?'<button data-act="go" data-page="'+m.go.page+'" class="mt-2 text-[12px] text-ice hover:underline">'+esc(m.go.label)+'</button>':'')+'</div></div>'
+    ).join('')
+    : '<div class="h-full grid place-items-center text-center py-10">'+
+      '<div><div class="w-11 h-11 mx-auto rounded-[3px] bg-aurora/12 border border-aurora/30 text-aurora grid place-items-center mb-3">'+ic('bot','w-5 h-5')+'</div>'+
+      '<p class="text-[14px] text-frost">Ask about the expedition</p>'+
+      '<p class="text-[12.5px] text-beam mt-1 max-w-[46ch] mx-auto leading-relaxed">The copilot reads live stock levels, cargo state, check-ins, maintenance hours and open incidents, and answers from those numbers.</p></div></div>')+
+    '</div>'+
+    '<div class="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-line">'+
+      SUGGESTED.map(s=>'<button data-act="copilot-suggest" data-q="'+esc(s)+'" class="px-2.5 py-1.5 rounded-[3px] border border-line text-[11.5px] text-beam hover:text-frost hover:border-line2 linkish">'+esc(s)+'</button>').join('')+
+    '</div>'+
+    '<div class="flex gap-2 mt-3">'+
+      '<input id="copilot-input" placeholder="Ask about fuel, cargo, people, assets, incidents…" class="flex-1 bg-deck border border-line rounded-[3px] px-3.5 py-2.5 text-[13px] focus:border-glacier/60 outline-none linkish"/>'+
+      '<button data-act="copilot-send" class="px-4 rounded-[3px] bg-glacier/18 border border-glacier/40 text-ice hover:bg-glacier/28 linkish">'+ic('send','w-4 h-4')+'</button>'+
+    '</div>'+
+  '</div></div>';
+}
+
+/* ===================== SETTINGS ===================== */
+function pageSettings(){
+  const s=state.settings;
+  const row=(label,desc,control)=>'<div class="flex items-start justify-between gap-4 py-3.5 border-b border-line last:border-0">'+
+    '<div class="min-w-0"><div class="text-[13px] text-frost">'+esc(label)+'</div><div class="text-[11.5px] text-beam mt-0.5 leading-snug">'+esc(desc)+'</div></div>'+
+    '<div class="shrink-0">'+control+'</div></div>';
+  const toggle=(name,on)=>'<button data-act="toggle" data-k="'+name+'" class="w-[42px] h-[22px] rounded-full border linkish relative '+(on?'bg-glacier/30 border-glacier/50':'bg-white/5 border-line')+'">'+
+    '<span class="absolute top-[2px] w-[16px] h-[16px] rounded-full linkish '+(on?'left-[22px] bg-ice':'left-[2px] bg-beam')+'"></span></button>';
+  return '<div class="p-4 md:p-6 max-w-[900px] mx-auto">'+
+  pageHead('Settings','PLATFORM PREFERENCES','')+
+  '<div class="panel rounded-[3px] p-4 mb-4">'+sectionHead('Display','','')+
+    row('Units','Metric across weights, distances and temperatures.', selectBox('settings.units', s.units, ['metric','imperial']))+
+    row('Station time zone','Timestamps are shown in this zone throughout the platform.', selectBox('settings.tz', s.tz, ['Station (UTC+5)','UTC','IST (UTC+5:30)']))+
+    row('Table density','Comfortable spacing is easier to read on station monitors.', selectBox('settings.density', s.density, ['comfortable','compact']))+
+  '</div>'+
+  '<div class="panel rounded-[3px] p-4 mb-4">'+sectionHead('Alerts and automation','','')+
+    row('Automatic alert generation','Evaluate depletion, maintenance and check-in rules continuously.', toggle('autoAlerts', s.autoAlerts))+
+    row('Audible alarm for critical alerts','Plays the station alarm tone on the command console.', toggle('sound', s.sound))+
+    row('Acknowledged alerts','You have acknowledged '+Object.keys(state.acked).length+' alerts on this console.', btn('Reset acknowledgements','reset-ack',{icon:'refresh'}))+
+  '</div>'+
+  '<div class="panel rounded-[3px] p-4 mb-4">'+sectionHead('Data','','')+
+    row('Simulated dataset','All figures in this prototype are generated: 126 personnel, '+cargo.length+' consignments, '+assets.length+' assets, '+inventory.length+' stock lines.', btn('Reload dataset','reload',{icon:'refresh'}))+
+    row('Stored preferences','Settings and acknowledgements are kept in this browser only.', btn('Clear stored data','clear-storage',{kind:'danger',icon:'x'}))+
+  '</div>'+
+  '<div class="panel rounded-[3px] p-4">'+
+    '<div class="eyebrow mb-2">ABOUT</div>'+
+    '<p class="text-[12.5px] text-beam leading-relaxed">PolarOps is an integrated expedition logistics and asset management platform built for the National Centre for Polar and Ocean Research under the Ministry of Earth Sciences (problem statement 26062). It brings expedition planning, cargo, inventory, personnel, assets and emergency response into one operational view, and applies rule-based automation and forecasting to surface risks before they become incidents.</p>'+
+  '</div></div>';
+}
+
+/* ===================== ROUTER ===================== */
+const PAGES={ command:pageCommand, expeditions:pageExpeditions, expedition:pageExpedition, live:pageLive,
+  cargo:pageCargo, inventory:pageInventory, personnel:pagePersonnel, assets:pageAssets, emergency:pageEmergency,
+  insights:pageInsights, analytics:pageAnalytics, reports:pageReports, copilot:pageCopilot, settings:pageSettings };
+let lastScroll=0;
+function render(keepScroll){
+  const v=$('#view'); const sc=v.scrollTop;
+  renderSidebar(); renderTopbar();
+  v.innerHTML = (PAGES[state.page]||pageCommand)();
+  v.scrollTop = keepScroll ? sc : 0;
+  const cl=$('#copilot-log'); if(cl) cl.scrollTop=cl.scrollHeight;
+}
+function go(page, params){
+  state.page=page; state.params=params||{}; state.notifOpen=false; state.sidebarOpen=false;
+  if(page!=='expedition') state.expTab='overview';
+  render();
+}
+
+/* ===================== EVENTS ===================== */
+document.addEventListener('click', function(ev){
+  const marker = ev.target.closest('[data-marker]');
+  if(marker){ state.mapSel = marker.getAttribute('data-marker'); render(true); return; }
+  const el = ev.target.closest('[data-act]');
+  if(!el){
+    if(!ev.target.closest('[data-stop]') && state.notifOpen){ state.notifOpen=false; render(true); }
+    const sr=$('#searchresults'); if(sr && !ev.target.closest('#globalsearch')) sr.classList.add('hidden');
+    return;
+  }
+  const act=el.getAttribute('data-act');
+  const id=el.getAttribute('data-id');
+  switch(act){
+    case 'noop': break;
+    case 'toggle-sidebar': state.sidebarOpen=!state.sidebarOpen; render(true); break;
+    case 'close-sidebar': state.sidebarOpen=false; render(true); break;
+    case 'go': go(el.getAttribute('data-page'), id?{id:id}:{}); break;
+    case 'go-expeditions': go('expeditions'); break;
+    case 'go-personnel': go('personnel'); break;
+    case 'go-cargo': go('cargo'); break;
+    case 'go-assets': go('assets'); break;
+    case 'go-inventory': go('inventory'); break;
+    case 'go-emergency': go('emergency'); break;
+    case 'notif': state.notifOpen=!state.notifOpen; render(true); break;
+    case 'profile': toast('Signed in as '+(expeditions.find(e=>e.id===state.expedition)||{}).lead+' · Expedition Leader.'); break;
+    case 'modal-backdrop': if(ev.target===el) closeModal(); break;
+    case 'close-modal': closeModal(); break;
+    case 'refresh': refreshSignals(); render(true); toast('Operational feed refreshed.'); break;
+    case 'theatre': state.mapTheatre=el.getAttribute('data-t'); state.mapSel=null; render(true); break;
+    case 'marker': state.mapSel=id; render(true); break;
+    case 'alertfilter': state.alertFilter=el.getAttribute('data-f'); render(true); break;
+    case 'ack': state.acked[id]=true; refreshSignals(); persist(); render(true); break;
+    case 'ack-all': alerts.forEach(a=>state.acked[a.id]=true); refreshSignals(); persist(); render(true); toast('All alerts acknowledged.'); break;
+
+    /* expeditions */
+    case 'exp-new': openModal(expForm(null),'max-w-3xl'); break;
+    case 'exp-edit': openModal(expForm(expeditions.find(e=>e.id===id)),'max-w-3xl'); break;
+    case 'exp-open': go('expedition',{id:id}); break;
+    case 'exptab': state.expTab=el.getAttribute('data-t'); render(true); break;
+    case 'exp-archive': {
+      const e=expeditions.find(x=>x.id===id); e.status='Archived'; render(true); toast(e.code+' archived.','warn'); break; }
+    case 'exp-restore': {
+      const e=expeditions.find(x=>x.id===id); e.status='Active'; render(true); toast(e.code+' restored to active.'); break; }
+    case 'save-expedition': {
+      const form=el.closest('form'); const d={};
+      Array.prototype.forEach.call(form.querySelectorAll('[name]'), i=> d[i.name]=i.value);
+      const eid=form.getAttribute('data-id');
+      if(!d.name){ toast('An expedition needs a name.','bad'); break; }
+      if(eid){ const e=expeditions.find(x=>x.id===eid);
+        Object.assign(e,{name:d.name,code:d.code||e.code,destination:d.destination,region:d.region,lead:d.lead,status:d.status,objective:d.objective,
+          start:d.start?new Date(d.start).getTime():e.start, end:d.end?new Date(d.end).getTime():e.end});
+        toast(e.code+' updated.');
+      } else {
+        const ne={id:uid('EXP'), code:d.code||'NEW-01', name:d.name, status:d.status||'Planning', destination:d.destination||'—',
+          region:d.region||'Antarctic', start:d.start?new Date(d.start).getTime():NOW, end:d.end?new Date(d.end).getTime():NOW+90*DAY,
+          lead:d.lead||'Unassigned', objective:d.objective||'Objective to be defined.', base:d.destination||'—',
+          health:{logistics:40,personnel:35,inventory:45,assets:50,safety:85}, route:[]};
+        expeditions.push(ne); toast(ne.code+' created.');
+      }
+      closeModal(); render(true); break; }
+    case 'exp-assign': openModal(modalHead('Assign resources', 'Attach personnel, cargo, assets and missions to this expedition')+
+      '<div class="p-5 grid sm:grid-cols-2 gap-3">'+
+      [['Personnel','Pick from the 126-strong deployment pool','users'],['Cargo','Link consignments already in the chain','package'],
+       ['Assets','Allocate vessels, vehicles and equipment','truck'],['Missions','Define scientific and engineering tasking','compass']]
+      .map(x=>'<button data-act="assign-do" data-what="'+x[0]+'" class="panel-flat rounded-[3px] p-4 text-left hover:border-line2 linkish">'+
+        '<span class="text-ice">'+ic(x[2],'w-4 h-4')+'</span><div class="cond text-[16px] text-frost mt-2">'+x[0]+'</div>'+
+        '<div class="text-[11.5px] text-beam mt-1">'+x[1]+'</div></button>').join('')+'</div>'+
+      '<div class="flex justify-end px-5 py-4 border-t border-line">'+btn('Close','close-modal')+'</div>'); break;
+    case 'assign-do': closeModal(); toast(el.getAttribute('data-what')+' assignment recorded against the expedition.'); break;
+
+    /* cargo */
+    case 'cargo-open': cargoModal(id); break;
+    case 'cargo-status': state.cargo.status = state.cargo.status===el.getAttribute('data-s')?'All':el.getAttribute('data-s'); render(true); break;
+    case 'cargo-clear': state.cargo={q:'',status:'All',prio:'All',exp:'All'}; render(true); break;
+    case 'cargo-new': openModal(modalHead('Add consignment','Registers a new cargo line and issues a tracking tag')+
+      '<div class="p-5 grid sm:grid-cols-2 gap-4">'+
+      ['Item description','Category','Weight (kg)','Destination'].map(l=>'<label class="block"><span class="eyebrow block mb-1.5">'+l.toUpperCase()+'</span>'+
+        '<input class="w-full bg-deck border border-line rounded px-3 py-2 text-[13px]" placeholder="'+esc(l)+'"/></label>').join('')+'</div>'+
+      '<div class="flex justify-end gap-2 px-5 py-4 border-t border-line">'+btn('Cancel','close-modal')+btn('Register consignment','cargo-save',{kind:'primary',icon:'check'})+'</div>'); break;
+    case 'cargo-save': closeModal(); toast('Consignment registered and tracking tag issued.'); break;
+    case 'cargo-qr': toast('QR tag regenerated for '+id+'. Scan at the next handover point.'); break;
+    case 'cargo-advance': {
+      const c=cargo.find(x=>x.id===id);
+      const order=['Planned','Packed','Dispatched','In Transit','Arrived','Verified','Stored'];
+      let i=order.indexOf(c.status); if(c.status==='Delayed') i=order.indexOf('In Transit');
+      c.status = order[Math.min(order.length-1,i+1)];
+      c.stage = Math.min(4, {'Planned':0,'Packed':0,'Dispatched':1,'In Transit':2,'Arrived':3,'Verified':3,'Stored':4}[c.status]);
+      c.history.forEach((h,k)=> h.done = k<=c.stage);
+      refreshSignals(); cargoModal(id); render(true); toast(c.id+' advanced to '+c.status+'.'); break; }
+
+    /* inventory */
+    case 'inv-open': invModal(id); break;
+    case 'inv-resupply': closeModal(); toast('Resupply request raised with the Logistics Cell.','warn'); break;
+    case 'inv-model': toast('Modelled single-generator operation: cover extends from 13.7 to 17.9 days.'); break;
+    case 'inv-consume': toast('Open any stock line to record receipts or consumption.'); break;
+    case 'inv-add': case 'inv-sub': {
+      const it=inventory.find(x=>x.id===id);
+      const inp=document.querySelector('[data-inv-amt="'+id+'"]');
+      const amt=Math.abs(parseFloat(inp&&inp.value)||0);
+      it.qty = Math.max(0, Math.min(it.max, it.qty + (act==='inv-add'?amt:-amt)));
+      it.history[it.history.length-1].q=Math.round(it.qty);
+      refreshSignals(); invModal(id); render(true);
+      toast((act==='inv-add'?'Received ':'Consumed ')+fmt(amt)+' '+it.unit+' · '+invDays(it).toFixed(1)+' days of cover.', invStatus(it)==='Critical'?'warn':'good'); break; }
+
+    /* personnel */
+    case 'person': personModal(id); break;
+    case 'checkin': {
+      const p=personById(id); p.lastCheckIn=NOW; p.expectedCheckIn=NOW+6*HOUR;
+      p.movements.push({ts:NOW, place:p.location, via:'Manual check-in at command console'});
+      if(p.status==='Medical Hold'){} else p.status='On Duty';
+      refreshSignals(); if($('#modal-root').innerHTML) personModal(id); render(true); toast(p.name+' checked in at '+tfmt(NOW)+'.'); break; }
+    case 'checkout': {
+      const p=personById(id); p.status='Off-Station'; p.expectedCheckIn=NOW+6*HOUR;
+      refreshSignals(); personModal(id); render(true); toast(p.name+' checked out.','warn'); break; }
+    case 'report-loc': {
+      const p=personById(id);
+      const opts=PLACE_NAMES.filter(n=>PLACES[n].theatre===(p.expeditionId==='EXP-2027-02'?'arctic':'antarctic'));
+      openModal(modalHead('Report location', p.name+' · '+p.id)+
+        '<div class="p-5"><span class="eyebrow block mb-1.5">CURRENT LOCATION</span>'+
+        '<select data-loc-sel="'+p.id+'" class="w-full bg-deck border border-line rounded px-3 py-2 text-[13px]">'+
+        opts.map(o=>'<option '+(o===p.location?'selected':'')+'>'+esc(o)+'</option>').join('')+'</select>'+
+        '<p class="text-[12px] text-beam mt-2.5">Reporting a location also counts as a check-in and clears any overdue flag.</p></div>'+
+        '<div class="flex justify-end gap-2 px-5 py-4 border-t border-line">'+btn('Cancel','close-modal')+btn('Report location','loc-save',{kind:'primary',icon:'pin',data:{id:p.id}})+'</div>','max-w-lg'); break; }
+    case 'loc-save': {
+      const p=personById(id); const sel=document.querySelector('[data-loc-sel="'+id+'"]');
+      if(sel) p.location=sel.value;
+      p.lastCheckIn=NOW; p.expectedCheckIn=NOW+6*HOUR;
+      p.movements.push({ts:NOW, place:p.location, via:'Position report'});
+      refreshSignals(); closeModal(); render(true); toast(p.name+' reported at '+p.location+'.'); break; }
+    case 'contact-team': toast('Voice call placed to the field team on HF and Iridium.','warn'); break;
+    case 'create-incident': {
+      const p=personById(id);
+      const inc={id:'INC-'+ri(4500,4599), type:'Missed Check-In', severity:'High', location:p.location, personId:p.id,
+        ts:NOW, stage:2, team:null, vehicle:null,
+        summary:'Escalated from automation rule PCA-02. '+p.name+' missed the '+tfmt(p.expectedCheckIn)+' check-in at '+p.location+'.', log:[]};
+      for(let k=0;k<=2;k++) inc.log.push({ts:NOW+k*60000, text:WORKFLOW[k], by:'Automation PCA-02'});
+      incidents.unshift(inc); refreshSignals(); go('emergency',{incident:inc.id}); toast(inc.id+' created from the overdue check-in.','bad'); break; }
+    case 'person-new': toast('Personnel onboarding form is part of the HR module.'); break;
+    case 'roll-call': {
+      const n=personnel.filter(p=>!isOverdue(p)).length;
+      toast('Roll call complete: '+n+' of '+personnel.length+' accounted for.', n===personnel.length?'good':'warn'); break; }
+
+    /* assets */
+    case 'asset-open': assetModal(id); break;
+    case 'asset-new': toast('Asset registration form is part of the asset module.'); break;
+    case 'maint-log': toast('Open any asset to log a completed service.'); break;
+    case 'maint-remind': { const a=assets.find(x=>x.id===id); a.nextMaint=NOW+2*DAY;
+      refreshSignals(); assetModal(id); render(true); toast('Maintenance reminder set for '+dfmt(a.nextMaint)+'.','warn'); break; }
+    case 'maint-done': { const a=assets.find(x=>x.id===id);
+      a.log.unshift({ts:NOW, kind:'Scheduled service', by:'Station Engineering', note:'Service completed, hour counter reset'});
+      a.lastMaint=NOW; a.hours=0; a.condition='Good'; a.status='Operational'; a.nextMaint=NOW+120*DAY;
+      refreshSignals(); assetModal(id); render(true); toast(a.id+' service recorded. Hour counter reset.'); break; }
+
+    /* emergency */
+    case 'sos': sosFlow(); break;
+    case 'incident': go('emergency',{incident:id}); break;
+    case 'inc-open': closeModal(); go('emergency',{incident:id}); break;
+    case 'inc-assign': { const i=incidents.find(x=>x.id===id);
+      const team=RESPONSE_TEAMS.find(t=>t.ready)||RESPONSE_TEAMS[0];
+      const veh=assets.filter(a=>a.type==='Snow Vehicle'&&a.status==='Operational')[0];
+      i.team=team.id; i.vehicle=veh?veh.id:null; i.stage=4;
+      i.log.push({ts:NOW, text:WORKFLOW[3], by:'Command Centre'});
+      i.log.push({ts:NOW, text:WORKFLOW[4]+' — '+team.name, by:'Command Centre'});
+      refreshSignals(); render(true); toast(team.name+' assigned to '+i.id+'.'); break; }
+    case 'inc-dispatch': { const i=incidents.find(x=>x.id===id); i.stage=5;
+      i.log.push({ts:NOW, text:'Team Dispatched — ETA 18 minutes', by:'Command Centre'});
+      refreshSignals(); render(true); toast('Team dispatched to '+i.location+'.','warn'); break; }
+    case 'inc-arrived': { const i=incidents.find(x=>x.id===id); i.stage=6;
+      i.log.push({ts:NOW, text:'Response Tracked — team on scene', by:'Field Report'});
+      refreshSignals(); render(true); toast('Team on scene at '+i.location+'.'); break; }
+    case 'inc-resolve': { const i=incidents.find(x=>x.id===id); i.stage=7;
+      i.log.push({ts:NOW, text:'Incident Resolved', by:'Command Centre'});
+      refreshSignals(); render(true); toast(i.id+' resolved and closed.'); break; }
+    case 'inc-escalate': { const i=incidents.find(x=>x.id===id);
+      i.severity = i.severity==='Medium'?'High':'Critical';
+      i.log.push({ts:NOW, text:'Severity escalated to '+i.severity, by:'Command Centre'});
+      refreshSignals(); render(true); toast(i.id+' escalated to '+i.severity+'.','bad'); break; }
+    case 'inc-broadcast': toast('Broadcast sent to Maitri, Bharati, Himadri and all vessels.','warn'); break;
+
+    /* reports */
+    case 'gen-report': generateReport(el.getAttribute('data-r')); break;
+    case 'report-sitrep': go('reports'); generateReport('sitrep'); break;
+    case 'copy-report': {
+      const b=state.reportOut?state.reportOut.body:'';
+      try{ navigator.clipboard.writeText(b).then(function(){toast('Report copied to clipboard.');},function(){toast('Select the text to copy it.','warn');}); }
+      catch(e){ toast('Select the text to copy it.','warn'); } break; }
+    case 'print-report': try{ window.print(); }catch(e){ toast('Printing is not available here.','warn'); } break;
+    case 'export-data': toast('Dataset export queued. In production this writes a CSV bundle.'); break;
+
+    /* copilot */
+    case 'copilot-send': sendCopilot(); break;
+    case 'copilot-suggest': sendCopilot(el.getAttribute('data-q')); break;
+    case 'copilot-clear': state.copilot=[]; render(); break;
+
+    /* settings */
+    case 'toggle': { const k=el.getAttribute('data-k'); state.settings[k]=!state.settings[k]; persist(); render(true);
+      toast((k==='autoAlerts'?'Automatic alerts ':'Audible alarm ')+(state.settings[k]?'on.':'off.')); break; }
+    case 'reset-ack': state.acked={}; refreshSignals(); persist(); render(true); toast('Acknowledgements reset.'); break;
+    case 'reload': refreshSignals(); render(); toast('Dataset reloaded.'); break;
+    case 'clear-storage': try{ localStorage.removeItem('polarops.v1'); }catch(e){} state.acked={}; refreshSignals(); render(true); toast('Stored preferences cleared.','warn'); break;
+    default: break;
+  }
+});
+
+function sendCopilot(preset){
+  const inp=$('#copilot-input');
+  const q = preset || (inp?inp.value.trim():'');
+  if(!q) return;
+  state.copilot.push({role:'user', text:q});
+  const a=copilotAnswer(q);
+  state.copilot.push({role:'bot', text:a.text, go:a.go});
+  render();
+}
+
+/* selects + inputs */
+document.addEventListener('change', function(ev){
+  const sel=ev.target.closest('[data-sel]');
+  if(sel){
+    const k=sel.getAttribute('data-sel');
+    if(k==='expedition'){ state.expedition=sel.value; render(true); toast('Current expedition set to '+expName(sel.value)+'.'); return; }
+    const parts=k.split('.');
+    if(parts.length===2){ state[parts[0]][parts[1]]=sel.value; persist(); render(true); }
+    return;
+  }
+  const layer=ev.target.closest('[data-layer]');
+  if(layer){ state.mapLayers[layer.getAttribute('data-layer')]=layer.checked; render(true); return; }
+  const cs=ev.target.closest('[data-cargo-status]');
+  if(cs){ const c=cargo.find(x=>x.id===cs.getAttribute('data-cargo-status')); c.status=cs.value;
+    c.stage={'Planned':0,'Packed':0,'Dispatched':1,'In Transit':2,'Delayed':2,'Arrived':3,'Verified':3,'Stored':4}[c.status];
+    c.history.forEach((h,k2)=>h.done=k2<=c.stage);
+    refreshSignals(); cargoModal(c.id); render(true); toast(c.id+' set to '+c.status+'.'); return; }
+  const as=ev.target.closest('[data-asset-status]');
+  if(as){ const a=assets.find(x=>x.id===as.getAttribute('data-asset-status')); a.status=as.value;
+    refreshSignals(); assetModal(a.id); render(true); toast(a.id+' set to '+a.status+'.'); return; }
+});
+let inputTimer=null;
+document.addEventListener('input', function(ev){
+  const inp=ev.target.closest('[data-inp]');
+  if(inp){
+    const k=inp.getAttribute('data-inp').split('.');
+    state[k[0]][k[1]]=inp.value;
+    clearTimeout(inputTimer);
+    inputTimer=setTimeout(function(){
+      const pos=inp.selectionStart; render(true);
+      const again=document.querySelector('[data-inp="'+k.join('.')+'"]');
+      if(again){ again.focus(); try{ again.setSelectionRange(pos,pos); }catch(e){} }
+    },200);
+    return;
+  }
+  if(ev.target.id==='globalsearch') globalSearch(ev.target.value);
+});
+document.addEventListener('keydown', function(ev){
+  if(ev.key==='Escape'){ if($('#modal-root').innerHTML){ closeModal(); } else if(state.notifOpen){ state.notifOpen=false; render(true);} }
+  if(ev.key==='Enter' && ev.target.id==='copilot-input'){ sendCopilot(); }
+  if(ev.key==='/' && document.activeElement.tagName!=='INPUT' && document.activeElement.tagName!=='TEXTAREA'){
+    ev.preventDefault(); const g=$('#globalsearch'); if(g) g.focus();
+  }
+});
+
+/* global search */
+function globalSearch(q){
+  const box=$('#searchresults'); if(!box) return;
+  q=(q||'').trim().toLowerCase();
+  if(q.length<2){ box.classList.add('hidden'); box.innerHTML=''; return; }
+  const hits=[];
+  expeditions.forEach(e=>{ if((e.name+e.code+e.destination).toLowerCase().indexOf(q)>=0) hits.push(['Expedition',e.code+' · '+e.name,'exp-open',e.id,'compass']); });
+  cargo.forEach(c=>{ if((c.id+c.item+c.location).toLowerCase().indexOf(q)>=0 && hits.length<40) hits.push(['Cargo',c.id+' · '+c.item,'cargo-open',c.id,'package']); });
+  personnel.forEach(p=>{ if((p.name+p.id+p.role).toLowerCase().indexOf(q)>=0 && hits.length<40) hits.push(['Personnel',p.name+' · '+p.role,'person',p.id,'users']); });
+  assets.forEach(a=>{ if((a.id+a.name+a.type).toLowerCase().indexOf(q)>=0 && hits.length<40) hits.push(['Asset',a.id+' · '+a.name,'asset-open',a.id,'truck']); });
+  inventory.forEach(i=>{ if((i.name+i.location).toLowerCase().indexOf(q)>=0 && hits.length<40) hits.push(['Inventory',i.name+' · '+i.location,'inv-open',i.id,'boxes']); });
+  incidents.forEach(i=>{ if((i.id+i.type+i.location).toLowerCase().indexOf(q)>=0 && hits.length<40) hits.push(['Incident',i.id+' · '+i.type,'incident',i.id,'siren']); });
+  box.innerHTML = hits.length
+    ? hits.slice(0,12).map(h=>'<button data-act="'+h[2]+'" data-id="'+esc(h[3])+'" class="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-white/5 linkish border-b border-[#152238] last:border-0">'+
+        '<span class="text-beam">'+ic(h[4],'w-3.5 h-3.5')+'</span>'+
+        '<span class="min-w-0"><span class="block text-[12.5px] text-frost truncate">'+esc(h[1])+'</span>'+
+        '<span class="block eyebrow" style="font-size:9.5px">'+h[0].toUpperCase()+'</span></span></button>').join('')
+    : '<div class="px-3 py-4 text-[12.5px] text-beam">Nothing matches that. Try a cargo ID, a person, an asset or a station.</div>';
+  box.classList.remove('hidden');
+}
+
+/* ===================== INIT ===================== */
+render();
+setTimeout(function(){
+  const crit=alerts.filter(a=>a.level==='Critical'&&!a.ack).length;
+  if(crit) toast(crit+' critical alerts need attention.','bad');
+},900);
+})();
+
+</script>
+</body>
+</html>
